@@ -49,6 +49,8 @@
 }
 
 .row-when {
+  flex: 1 1 auto;
+  min-width: 0; /* allow the flex item to shrink so it ellipsizes instead of overflowing */
   font-size: 0.8rem;
   white-space: nowrap;
   overflow: hidden;
@@ -56,6 +58,7 @@
 }
 
 .row-stats {
+  flex: 0 0 auto;
   margin-left: auto;
   display: flex;
   align-items: baseline;

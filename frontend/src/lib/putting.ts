@@ -56,6 +56,17 @@ export function findTest(tests: Test[], day: string = localDay()): Test | undefi
   return tests.find((t) => t.test_date === day)
 }
 
+/** Whether an ISO timestamp falls on the given local calendar day. */
+export function isSameLocalDay(iso: string, day: string = localDay()): boolean {
+  const d = new Date(iso)
+  return !Number.isNaN(d.getTime()) && localDay(d) === day
+}
+
+/** Every batch recorded today (free and test alike), by device-local day. */
+export function todaysBatches(batches: Batch[], day: string = localDay()): Batch[] {
+  return batches.filter((b) => isSameLocalDay(b.created_at, day))
+}
+
 /** The batches belonging to a given daily test. */
 export function testBatches(batches: Batch[], testId: string | null): Batch[] {
   if (!testId) return []

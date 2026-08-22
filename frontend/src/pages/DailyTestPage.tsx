@@ -15,7 +15,7 @@ import { useSync } from '../offline/SyncContext'
 import { newEvent } from '../offline/commands'
 import type { CommandEvent } from '../offline/types'
 import { usePuttingData } from '../lib/usePuttingData'
-import TodayTestChart from '../components/TodayTestChart'
+import StatsChartPanel from '../components/StatsChartPanel'
 import {
   TEST_DISTANCES,
   TEST_PUTTS,
@@ -83,6 +83,12 @@ function DailyTestPage() {
       {readOnly && <p className="muted read-only-note">Viewing the demo. Sign in as an admin to record your own.</p>}
       {error && <p className="error" role="alert">{error}</p>}
 
+      <StatsChartPanel
+        title="Today's test"
+        batches={todays}
+        emptyNote="No daily-test putts yet today."
+      />
+
       {complete ? (
         <div className="panel complete">
           <p className="complete-head">Daily test complete for today ✓</p>
@@ -114,8 +120,6 @@ function DailyTestPage() {
           </div>
         </div>
       )}
-
-      <TodayTestChart batches={batches} tests={tests} />
     </section>
   )
 }
