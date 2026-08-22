@@ -1,5 +1,6 @@
 # Template Improvements
 This file contains a running list of changes to make to the original application template.
+The template developer will manually curate this list.
 Completed items should be removed.
 
 ## Candidate changes for the template
@@ -11,6 +12,12 @@ Completed items should be removed.
 | **Lint config fights the container.** `npm run lint` inside the frontend container scans `node_modules` (the repo-root single `.gitignore` isn't in the build context), producing thousands of warnings. | Make lint usable out of the box: either set the lint script to `oxlint src`, or add a `frontend/.oxlintignore` for `node_modules`. |
 | **Worked example of a derived / multi-aggregate read.** The demo `foo` is one flat table. A second aggregate that references another (like putting's batches -> tests) plus a page that derives state from both would be a closer starting point for real work. | Most real features span more than one aggregate and derive display state rather than reading a table straight through. The template has no example of that shape. |
 | **A canonical editable-list component.** History is a tap-to-edit list, and it is a pattern almost every app repeats (compact rows, an edit/delete dialog, optimistic writes). The template has no such example, so each app reinvents the row markup, the modal, and the vertical rhythm. **Vertical space note:** naive list rows (two-line, generous padding) eat too much screen on mobile; the compact single-line row landed on here (badge + when + right-aligned stats, ~40px) is worth generalizing. | An editable list is common enough to deserve a shared, compact, accessible example so apps don't each re-solve the same layout and interaction. |
-
+| **Global `box-sizing: border-box` reset (CSS bug).** `index.css` ships no box-sizing reset. With the default `content-box`, any full-width element that also has padding (a `.page` wrapper, a card) overflows the viewport on mobile: the left looks padded while the content spills off the right edge. | Mobile is the primary target and padded full-width containers are the norm, so this bites almost immediately and is hard to diagnose. A one-line `*, *::before, *::after { box-sizing: border-box }` prevents it. This app added exactly that. |
+| **Per-app admin scoping for per-user apps.** Admins come from a single shared `/shared/admin_emails` SSM parameter, so adding one participant makes them an admin of every app on that path. An app whose model is "each participant owns their own data" (see the ownership row) needs its own allowlist, which means setting `secrets_path` per app and populating that path. | If per-user ownership becomes the template default, cross-app admin leakage becomes a real hazard. The template should make per-app secret scoping an easy, documented switch (or default `secrets_path` to the app name). |
+| **Surface the OAuth-origins step at deploy time.** A fresh app deploys cleanly and comes up, but Google sign-in fails silently until the new subdomain is added to the shared OAuth client's authorized JavaScript origins (README setup step 5). | "Deployed successfully but no one can log in" is a confusing first-run failure. The template could restate this in the infra docs or deploy output, not only in the root README that gets emptied on clone. |
+Make a format (table?) for this file. Copy the top few sentences as they have changed.
+make all developer scripts at local/.
+approved users and admins can be separate.
+update app.config.json to have id and name separate
 
 What could have made this implementation easier for my agent post-template-clone?

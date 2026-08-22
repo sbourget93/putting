@@ -93,6 +93,57 @@ export function pickRandom<T>(items: T[]): T | undefined {
   return items[Math.floor(Math.random() * items.length)]
 }
 
+// A tiny seeded PRNG (mulberry32) plus a string hash, so a given seed always
+// produces the same sequence. Used to make the daily test's distance order a pure
+// function of the date: two people practicing on the same day get the same order.
+function hashSeed(text: string): number {
+  let h = 2166136261 >>> 0
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return h >>> 0
+}
+
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/**
+ * The day's test distances in a stable, date-seeded shuffle. Everyone who runs
+ * the test on the same local day sees the same order, so people practicing
+ * together face the same distances in the same sequence.
+ */
+export function seededTestOrder(day: string = localDay()): number[] {
+  const rng = mulberry32(hashSeed(day))
+  const order = [...TEST_DISTANCES]
+  // Fisher-Yates driven by the seeded PRNG.
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
+    ;[order[i], order[j]] = [order[j], order[i]]
+  }
+  return order
+}
+
+/**
+ * The next distance to prompt in a daily test: the first distance in the day's
+ * seeded order that hasn't been recorded yet, or undefined when the test is done.
+ */
+export function nextTestDistance(
+  batches: Batch[],
+  testId: string | null,
+  day: string = localDay(),
+): number | undefined {
+  const done = new Set(testBatches(batches, testId).map((b) => b.distance))
+  return seededTestOrder(day).find((d) => !done.has(d))
+}
+
 export interface DistanceStat {
   distance: number
   made: number

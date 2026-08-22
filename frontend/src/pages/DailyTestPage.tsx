@@ -1,16 +1,17 @@
 /**
  * Daily Test — the home page.
  *
- * The test is 5 putts from every distance 12–33 ft. On each visit we compute what
- * distances remain for today (from the batches referencing today's test) and prompt
- * a random one until none are left, at which point the day is complete. Recording
- * the first putt of the day starts today's test (TestStarted) and records the putt
- * (BatchRecorded) in one atomic command, so the test always exists before a batch
- * points at it.
+ * The test is 5 putts from every distance 12–33 ft. The distance order is a
+ * date-seeded shuffle (see nextTestDistance), so everyone practicing on the same
+ * day faces the same distances in the same sequence. On each visit we prompt the
+ * first distance in that order not yet recorded, until none are left and the day
+ * is complete. Recording the first putt of the day starts today's test
+ * (TestStarted) and records the putt (BatchRecorded) in one atomic command, so the
+ * test always exists before a batch points at it.
  *
  * Non-admins see the demo owner's progress, read-only.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useSync } from '../offline/SyncContext'
 import { newEvent } from '../offline/commands'
 import type { CommandEvent } from '../offline/types'
@@ -21,7 +22,7 @@ import {
   TEST_PUTTS,
   findTest,
   localDay,
-  pickRandom,
+  nextTestDistance,
   remainingTestDistances,
   testBatches,
 } from '../lib/putting'
@@ -42,12 +43,13 @@ function DailyTestPage() {
   const todays = useMemo(() => testBatches(batches, testId), [batches, testId])
   const doneCount = TEST_DISTANCES.length - remaining.length
 
-  // The prompted distance stays put across re-renders and only re-rolls once the
-  // current one has been recorded (so it drops out of `remaining`).
-  const [current, setCurrent] = useState<number | null>(null)
-  useEffect(() => {
-    setCurrent((cur) => (cur != null && remaining.includes(cur) ? cur : pickRandom(remaining) ?? null))
-  }, [remaining])
+  // The prompted distance is a pure function of the date-seeded order and what's
+  // been recorded, so it needs no local state: it's the first distance today's
+  // order still owes.
+  const current = useMemo(
+    () => nextTestDistance(batches, testId, today) ?? null,
+    [batches, testId, today],
+  )
 
   function record(made: number) {
     if (current == null) return
