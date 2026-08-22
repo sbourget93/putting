@@ -1,0 +1,80 @@
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* One compact line per entry: badge, when, then stats pushed to the right. */
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 40px;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid color-mix(in srgb, CanvasText 12%, Canvas);
+  border-radius: 0.55rem;
+  background: Canvas;
+  text-align: left;
+  width: 100%;
+}
+
+.history-row[role='button'] {
+  cursor: pointer;
+}
+
+.history-row[role='button']:active {
+  background: color-mix(in srgb, CanvasText 5%, Canvas);
+}
+
+.kind-badge {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 0.08rem 0.4rem;
+  border-radius: 999px;
+}
+
+.kind-badge.test {
+  background: color-mix(in srgb, var(--brand) 18%, Canvas);
+  color: color-mix(in srgb, var(--brand) 90%, CanvasText);
+}
+
+.kind-badge.free {
+  background: color-mix(in srgb, CanvasText 10%, Canvas);
+}
+
+.row-when {
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-stats {
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.92rem;
+}
+
+.row-distance {
+  font-weight: 600;
+}
+
+.row-made {
+  color: color-mix(in srgb, CanvasText 55%, Canvas);
+}
+
+.row-pct {
+  min-width: 2.6rem;
+  text-align: right;
+  font-weight: 700;
+  color: var(--brand);
+}

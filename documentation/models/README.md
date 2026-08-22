@@ -13,6 +13,8 @@ These are all read-model projections derived from the event-sourced data in the 
 
 | Model | Description |
 | ----- | ----------- |
+| [Test](./projections/tests.md) | A daily test: the container a day's 5-putt test batches belong to. |
+| [Batch](./projections/batches.md) | One recorded set of putts from a single distance (free or test). |
 | [Foo](./projections/foo.md) | A dummy data model for testing application features. |
 
 ## Metadata fields

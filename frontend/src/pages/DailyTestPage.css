@@ -1,0 +1,107 @@
+.read-only-note {
+  margin-top: -0.5rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.daily-test .prompt {
+  text-align: center;
+}
+
+.prompt-label {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  color: color-mix(in srgb, CanvasText 55%, Canvas);
+}
+
+.prompt-distance {
+  margin: 0.2rem 0 0.6rem;
+  font-size: 4.5rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--brand);
+}
+
+.prompt-distance .unit {
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: CanvasText;
+}
+
+.prompt-sub {
+  margin: 0 0 1rem;
+}
+
+.made-buttons {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.5rem;
+}
+
+.made-btn {
+  min-height: 56px;
+  border: 1px solid color-mix(in srgb, CanvasText 25%, Canvas);
+  border-radius: 0.7rem;
+  background: Canvas;
+  color: CanvasText;
+  font: inherit;
+  font-size: 1.4rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.made-btn:active {
+  background: var(--brand);
+  color: var(--brand-text);
+}
+
+.complete-head {
+  margin: 0 0 0.25rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.results-grid {
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(3.2rem, 1fr));
+  gap: 0.4rem;
+}
+
+.results-grid .result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.35rem 0;
+  border-radius: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.result.done {
+  background: color-mix(in srgb, var(--brand) 16%, Canvas);
+}
+
+.result.pending {
+  background: color-mix(in srgb, CanvasText 7%, Canvas);
+  color: color-mix(in srgb, CanvasText 45%, Canvas);
+}
+
+.result-dist {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.result-made {
+  font-size: 0.8rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .made-btn:active {
+    background: Canvas;
+    color: CanvasText;
+  }
+}

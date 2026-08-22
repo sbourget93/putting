@@ -18,3 +18,98 @@ body {
 #root {
   min-height: 100svh;
 }
+
+/* ---- Shared app utilities (mobile-first) -------------------------------- */
+
+.page {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 1rem 1rem calc(2rem + env(safe-area-inset-bottom));
+}
+
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.page-head h1 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.muted {
+  color: color-mix(in srgb, CanvasText 55%, Canvas);
+}
+
+.progress-pill {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  background: var(--brand);
+  color: var(--brand-text);
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.error {
+  color: #b3261e;
+  font-weight: 500;
+}
+
+.panel {
+  border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
+  border-radius: 0.9rem;
+  padding: 1.1rem;
+  background: color-mix(in srgb, CanvasText 3%, Canvas);
+}
+
+.panel + .panel {
+  margin-top: 1rem;
+}
+
+.section-title {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: color-mix(in srgb, CanvasText 60%, Canvas);
+}
+
+/* Base for tappable controls: comfortable 44px targets on mobile. */
+.btn {
+  min-height: 44px;
+  padding: 0 1rem;
+  border: 1px solid color-mix(in srgb, CanvasText 25%, Canvas);
+  border-radius: 0.6rem;
+  background: Canvas;
+  color: CanvasText;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn-primary {
+  background: var(--brand);
+  color: var(--brand-text);
+  border-color: transparent;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:active {
+    transform: none;
+  }
+}

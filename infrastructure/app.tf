@@ -1,7 +1,7 @@
 terraform {
   backend "s3" {
     bucket = "apps-743018003420-us-east-1-an"
-    key    = "app-template/terraform/terraform.tfstate"
+    key    = "putting/terraform/terraform.tfstate"
     region = "us-east-1"
   }
 }
@@ -12,5 +12,5 @@ provider "aws" {
 
 module "app" {
   source   = "./terraform"
-  app_name = "app-template"
+  app_name = "putting"
 }

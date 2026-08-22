@@ -1,3 +1,16 @@
 # Template Improvements
 This file contains a running list of changes to make to the original application template.
 Completed items should be removed.
+
+## Candidate changes for the template
+
+| Change | Rationale |
+| --- | --- |
+| **Per-user ownership and read isolation.** The command endpoint stamps `owner` (the signed-in admin's email) onto every event server-side, overwriting any client value. Projection edit/delete handlers scope their writes by `owner`, and query endpoints resolve which owner to read (`email` if admin, else a configurable `DEMO_OWNER_EMAIL`). | The template's demo (`foo`) has a single global projection with no notion of who owns a row. Any app where each user has their own private data needs this pattern. It is generic, not specific to putting, so it is a good candidate to fold back into the template as the default write/read shape. |
+| **Document the read model in `frontend/AGENTS.md`.** Add a short "who reads what" note: admins run the offline engine and read/write their own data; everyone else has an inert engine and reads the query endpoints online. | This is the single most load-bearing fact about the data layer, and today it has to be reverse-engineered from `StoreProvider` and `TemplateTestPage`. Stating it up front saves a full read-through. |
+| **Lint config fights the container.** `npm run lint` inside the frontend container scans `node_modules` (the repo-root single `.gitignore` isn't in the build context), producing thousands of warnings. | Make lint usable out of the box: either set the lint script to `oxlint src`, or add a `frontend/.oxlintignore` for `node_modules`. |
+| **Worked example of a derived / multi-aggregate read.** The demo `foo` is one flat table. A second aggregate that references another (like putting's batches -> tests) plus a page that derives state from both would be a closer starting point for real work. | Most real features span more than one aggregate and derive display state rather than reading a table straight through. The template has no example of that shape. |
+| **A canonical editable-list component.** History is a tap-to-edit list, and it is a pattern almost every app repeats (compact rows, an edit/delete dialog, optimistic writes). The template has no such example, so each app reinvents the row markup, the modal, and the vertical rhythm. **Vertical space note:** naive list rows (two-line, generous padding) eat too much screen on mobile; the compact single-line row landed on here (badge + when + right-aligned stats, ~40px) is worth generalizing. | An editable list is common enough to deserve a shared, compact, accessible example so apps don't each re-solve the same layout and interaction. |
+
+
+What could have made this implementation easier for my agent post-template-clone?

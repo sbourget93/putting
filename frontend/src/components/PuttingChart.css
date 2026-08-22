@@ -1,0 +1,32 @@
+.putting-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.putting-chart .grid {
+  stroke: color-mix(in srgb, CanvasText 14%, Canvas);
+  stroke-width: 1;
+}
+
+.putting-chart .axis-label {
+  fill: color-mix(in srgb, CanvasText 55%, Canvas);
+  font-size: 10px;
+}
+
+.putting-chart .axis-title {
+  fill: color-mix(in srgb, CanvasText 45%, Canvas);
+  font-size: 10px;
+}
+
+.putting-chart .series-line {
+  fill: none;
+  stroke: var(--brand);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.putting-chart .series-dot {
+  fill: var(--brand);
+}

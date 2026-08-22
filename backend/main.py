@@ -45,6 +45,25 @@ app.add_middleware(
 
 app.include_router(auth.router)
 
+# Whose data an unauthenticated (or non-admin) visitor reads: the public demo
+# account. Only admins can write, so a non-admin never has data of their own to
+# show, and this is what makes the app browsable signed-out. Configurable so a
+# fork can point the demo at its own account.
+DEMO_OWNER_EMAIL = os.environ.get("DEMO_OWNER_EMAIL", "sbourget93@gmail.com").lower()
+
+
+def _read_owner(request: Request) -> str:
+    """Whose rows a read returns: your own if you are an admin, else the demo owner.
+
+    Admins read and write their own data through the offline engine. Everyone else
+    (logged out, or signed in but not on the allowlist) can only read, and only
+    the demo owner's data.
+    """
+    if auth.is_admin(request):
+        user = auth.current_user(request) or {}
+        return (user.get("email") or "").lower()
+    return DEMO_OWNER_EMAIL
+
 
 # ---------------------------------------------------------------------------
 # Request models
@@ -65,18 +84,26 @@ class CommandRequest(BaseModel):
 # Command endpoint (writes)
 # ---------------------------------------------------------------------------
 @app.post("/commands", dependencies=[Depends(auth.require_admin)])
-def post_commands(req: CommandRequest):
+def post_commands(req: CommandRequest, request: Request):
     """Append a batch of client events, then project them. Atomic all-or-nothing.
 
     Admin-only (see auth.require_admin): non-admins are rejected with 403 before
     any write. Aggregate-agnostic: any event whose type has a registered
     projection handler is accepted.
 
-    There is no concurrency check — writes are last-write-wins, ordered by the
-    seq SQLite assigns on arrival. Retries are safe because events already in the
-    log are skipped by event_id, and a rejected batch leaves no partial state
-    because the whole thing runs in one transaction.
+    Every event is stamped server-side with `owner`, the signed-in admin's email,
+    overwriting anything the client sent. That is what ties each write to its
+    author and lets the projections enforce per-user isolation (an edit or delete
+    can only touch a row whose owner matches). The stamped payload is what gets
+    persisted, so replay reproduces the same ownership.
+
+    There is no concurrency check. Writes are last-write-wins, ordered by the seq
+    SQLite assigns on arrival. Retries are safe because events already in the log
+    are skipped by event_id, and a rejected batch leaves no partial state because
+    the whole thing runs in one transaction.
     """
+    user = auth.current_user(request) or {}
+    owner = (user.get("email") or "").lower()
     with db.transaction() as conn:
         for event in req.events:
             if event.type not in KNOWN_EVENT_TYPES:
@@ -90,7 +117,9 @@ def post_commands(req: CommandRequest):
             if already:
                 continue
 
-            payload = event.data or {}
+            # Server-stamped owner is authoritative: never trust a client-supplied
+            # one. Persisted into the event so replay keeps the same ownership.
+            payload = {**(event.data or {}), "owner": owner}
             try:
                 conn.execute(
                     "INSERT INTO events (event_id, event_type, aggregate_id, payload, created_at) "
@@ -172,3 +201,40 @@ def get_foos(request: Request):
             foo["private_value"] = r["private_value"]
         foos.append(foo)
     return {"version": version, "foos": foos}
+
+
+@app.get("/batches")
+def get_batches(request: Request):
+    """Active putt batches for the resolved owner, plus the current version.
+
+    Owner-scoped (see _read_owner): an admin gets their own batches, everyone else
+    gets the demo owner's. The offline engine calls this as its `batches` snapshot;
+    non-admin pages read it online. Soft-deleted rows are omitted.
+    """
+    owner = _read_owner(request)
+    with db.read() as conn:
+        rows = conn.execute(
+            "SELECT batch_id, kind, test_id, distance, batch_size, made, created_at, updated_at "
+            "FROM batches WHERE owner = ? AND deleted_at IS NULL ORDER BY created_at",
+            (owner,),
+        ).fetchall()
+        version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
+    return {"version": version, "owner": owner, "batches": [dict(r) for r in rows]}
+
+
+@app.get("/tests")
+def get_tests(request: Request):
+    """Active daily tests for the resolved owner, plus the current version.
+
+    Owner-scoped like /batches. The client maps a test to its batches by test_id to
+    compute daily-test progress.
+    """
+    owner = _read_owner(request)
+    with db.read() as conn:
+        rows = conn.execute(
+            "SELECT test_id, test_date, created_at, updated_at "
+            "FROM tests WHERE owner = ? AND deleted_at IS NULL ORDER BY test_date",
+            (owner,),
+        ).fetchall()
+        version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
+    return {"version": version, "owner": owner, "tests": [dict(r) for r in rows]}
