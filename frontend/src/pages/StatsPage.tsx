@@ -23,8 +23,8 @@ function StatsPage() {
   return (
     <section className="page stats">
       <div className="page-head">
-        <h1>Stats</h1>
-        {totalAttempts > 0 && <span className="progress-pill">{overall}% overall</span>}
+        <h1>Statistics</h1>
+        {totalAttempts > 0 && <span className="progress-pill">{overall}%</span>}
       </div>
 
       {error && <p className="error" role="alert">{error}</p>}
@@ -35,8 +35,7 @@ function StatsPage() {
         <div className="panel chart-panel">
           <PuttingChart stats={stats} />
           <p className="chart-caption muted">
-            {totalMade} made of {totalAttempts} across {stats.length} distance
-            {stats.length === 1 ? '' : 's'}.
+            {totalMade} made of {totalAttempts}.
           </p>
         </div>
       )}

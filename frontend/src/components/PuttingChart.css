@@ -30,3 +30,49 @@
 .putting-chart .series-dot {
   fill: var(--brand);
 }
+
+.putting-chart .baseline-line {
+  fill: none;
+  stroke: color-mix(in srgb, CanvasText 30%, Canvas);
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.putting-chart .baseline-dot {
+  fill: color-mix(in srgb, CanvasText 30%, Canvas);
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  gap: 1.2rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+  color: color-mix(in srgb, CanvasText 65%, Canvas);
+}
+
+.chart-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.legend-swatch.series {
+  background: var(--brand);
+}
+
+.legend-swatch.baseline {
+  background: color-mix(in srgb, CanvasText 30%, Canvas);
+}

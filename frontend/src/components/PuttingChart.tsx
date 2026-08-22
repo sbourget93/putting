@@ -1,10 +1,11 @@
 /**
  * Make-percentage-by-distance line chart, drawn as a self-contained SVG.
  *
- * X is distance (ft), Y is make % (0–100), one line across all recorded batches.
- * No chart library: a handful of scales and an SVG polyline keep it tiny, offline,
- * and theme-aware (axes use currentColor, the line uses --brand). The SVG scales
- * to its container via viewBox.
+ * X is distance (ft), Y is make % (0–100). The primary series (--brand) is drawn
+ * over an optional grey `baseline` series, letting a page compare, say, today's
+ * putts against the user's all-time average. No chart library: a handful of scales
+ * and an SVG polyline keep it tiny, offline, and theme-aware (axes use
+ * currentColor). The SVG scales to its container via viewBox.
  */
 import type { DistanceStat } from '../lib/putting'
 import './PuttingChart.css'
@@ -16,16 +17,27 @@ const PLOT_W = W - PAD.left - PAD.right
 const PLOT_H = H - PAD.top - PAD.bottom
 const Y_TICKS = [0, 25, 50, 75, 100]
 
-export default function PuttingChart({ stats }: { stats: DistanceStat[] }) {
-  const minD = stats.length ? stats[0].distance : 0
-  const maxD = stats.length ? stats[stats.length - 1].distance : 1
+export default function PuttingChart({
+  stats,
+  baseline = [],
+}: {
+  stats: DistanceStat[]
+  baseline?: DistanceStat[]
+}) {
+  // Scale X across both series so the two lines share a domain and line up.
+  const allDistances = [...stats, ...baseline].map((s) => s.distance)
+  const minD = allDistances.length ? Math.min(...allDistances) : 0
+  const maxD = allDistances.length ? Math.max(...allDistances) : 1
   const span = maxD - minD || 1 // avoid /0 when there's a single distance
 
   const x = (d: number) => PAD.left + (span === 0 ? PLOT_W / 2 : ((d - minD) / span) * PLOT_W)
   const y = (pct: number) => PAD.top + (1 - pct / 100) * PLOT_H
 
   const points = stats.map((s) => `${x(s.distance)},${y(s.pct)}`).join(' ')
-  const labelStep = Math.max(1, Math.ceil(stats.length / 8))
+  const baselinePoints = baseline.map((s) => `${x(s.distance)},${y(s.pct)}`).join(' ')
+  // X-axis ticks: label every distance in the wider series, thinned so they don't collide.
+  const axisStats = baseline.length > stats.length ? baseline : stats
+  const labelStep = Math.max(1, Math.ceil(axisStats.length / 8))
 
   const summary = stats.length
     ? `Make percentage by distance from ${minD} to ${maxD} feet`
@@ -50,8 +62,8 @@ export default function PuttingChart({ stats }: { stats: DistanceStat[] }) {
       ))}
 
       {/* X labels (thinned so they don't collide) */}
-      {stats.map((s, i) =>
-        i % labelStep === 0 || i === stats.length - 1 ? (
+      {axisStats.map((s, i) =>
+        i % labelStep === 0 || i === axisStats.length - 1 ? (
           <text
             key={s.distance}
             className="axis-label"
@@ -67,7 +79,17 @@ export default function PuttingChart({ stats }: { stats: DistanceStat[] }) {
         distance (ft)
       </text>
 
-      {/* The series */}
+      {/* The baseline (all-time) series, drawn behind the primary one */}
+      {baseline.length > 1 && <polyline className="baseline-line" points={baselinePoints} />}
+      {baseline.map((s) => (
+        <circle key={s.distance} className="baseline-dot" cx={x(s.distance)} cy={y(s.pct)} r={2}>
+          <title>
+            All-time {s.distance} ft — {s.made}/{s.attempts} ({Math.round(s.pct)}%)
+          </title>
+        </circle>
+      ))}
+
+      {/* The primary series */}
       {stats.length > 1 && <polyline className="series-line" points={points} />}
       {stats.map((s) => (
         <circle key={s.distance} className="series-dot" cx={x(s.distance)} cy={y(s.pct)} r={3.5}>

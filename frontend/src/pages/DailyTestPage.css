@@ -4,6 +4,12 @@
   font-size: 0.9rem;
 }
 
+/* The day's test is done: a green badge instead of the running count. */
+.progress-pill.complete-pill {
+  background: #16a34a;
+  color: #fff;
+}
+
 .daily-test .prompt {
   text-align: center;
 }
@@ -57,10 +63,30 @@
   color: var(--brand-text);
 }
 
-.complete-head {
-  margin: 0 0 0.25rem;
-  font-size: 1.2rem;
-  font-weight: 600;
+.summary {
+  text-align: center;
+}
+
+.summary-pct {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.summary-compare {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: color-mix(in srgb, CanvasText 60%, Canvas);
+}
+
+.summary-up {
+  border-color: color-mix(in srgb, #22c55e 35%, Canvas);
+  background: color-mix(in srgb, #22c55e 14%, Canvas);
+}
+
+.summary-down {
+  border-color: color-mix(in srgb, #ef4444 35%, Canvas);
+  background: color-mix(in srgb, #ef4444 12%, Canvas);
 }
 
 .results-grid {

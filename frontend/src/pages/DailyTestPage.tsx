@@ -23,6 +23,7 @@ import {
   findTest,
   localDay,
   nextTestDistance,
+  overallPct,
   remainingTestDistances,
   testBatches,
 } from '../lib/putting'
@@ -42,6 +43,14 @@ function DailyTestPage() {
   )
   const todays = useMemo(() => testBatches(batches, testId), [batches, testId])
   const doneCount = TEST_DISTANCES.length - remaining.length
+
+  // Lifetime baseline: every test putt except today's, so the summary and the
+  // chart's grey line compare today against the user's history, not itself.
+  const lifetimeBatches = useMemo(
+    () => batches.filter((b) => b.kind === 'test' && b.test_id !== testId),
+    [batches, testId],
+  )
+  const lifetimePct = useMemo(() => overallPct(lifetimeBatches), [lifetimeBatches])
 
   // The prompted distance is a pure function of the date-seeded order and what's
   // been recorded, so it needs no local state: it's the first distance today's
@@ -78,25 +87,26 @@ function DailyTestPage() {
   return (
     <section className="page daily-test">
       <div className="page-head">
-        <h1>Daily Test</h1>
-        <span className="progress-pill">{doneCount} / {TEST_DISTANCES.length}</span>
+        <h1>Daily Putts</h1>
+        {complete ? (
+          <span className="progress-pill complete-pill">Complete</span>
+        ) : (
+          <span className="progress-pill">{doneCount} / {TEST_DISTANCES.length}</span>
+        )}
       </div>
 
       {readOnly && <p className="muted read-only-note">Viewing the demo. Sign in as an admin to record your own.</p>}
       {error && <p className="error" role="alert">{error}</p>}
 
       <StatsChartPanel
-        title="Today's test"
+        title="Today's Putts"
         batches={todays}
-        emptyNote="No daily-test putts yet today."
+        baseline={lifetimeBatches}
+        emptyNote="No putts recorded yet today."
       />
 
       {complete ? (
-        <div className="panel complete">
-          <p className="complete-head">Daily test complete for today ✓</p>
-          <p className="muted">Resets tomorrow. Here's how today went:</p>
-          <ResultsGrid batches={todays} />
-        </div>
+        <CompleteSummary todayPct={overallPct(todays)} lifetimePct={lifetimePct} />
       ) : readOnly ? (
         <div className="panel">
           <p className="muted">
@@ -123,6 +133,38 @@ function DailyTestPage() {
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * The end-of-day summary: today's overall test make percentage, and how it
+ * compares to the lifetime average. The panel tints green when today beats the
+ * baseline and red when it trails.
+ */
+function CompleteSummary({
+  todayPct,
+  lifetimePct,
+}: {
+  todayPct: number | null
+  lifetimePct: number | null
+}) {
+  const today = Math.round(todayPct ?? 0)
+  const hasBaseline = lifetimePct != null
+  const lifetime = hasBaseline ? Math.round(lifetimePct) : null
+  const diff = hasBaseline ? today - (lifetime as number) : 0
+  const tone = !hasBaseline ? 'neutral' : diff >= 0 ? 'up' : 'down'
+
+  return (
+    <div className={`panel complete summary summary-${tone}`}>
+      <p className="summary-pct">C1X putting percentage: {today}%</p>
+      {hasBaseline && (
+        <p className="summary-compare">
+          {diff === 0
+            ? `On par with your lifetime average of ${lifetime}%`
+            : `${Math.abs(diff)}% ${diff > 0 ? 'better' : 'worse'} than your lifetime average of ${lifetime}%`}
+        </p>
+      )}
+    </div>
   )
 }
 

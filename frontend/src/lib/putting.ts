@@ -24,10 +24,9 @@ export interface Batch {
   created_at: string
 }
 
-// Free putts: any distance in this range, any batch size.
+// Distance range still allowed when editing legacy free batches in History.
 export const FREE_MIN = 10
 export const FREE_MAX = 60
-export const FREE_DEFAULT_BATCH = 10
 
 // The daily test: 5 putts from every distance in [TEST_MIN, TEST_MAX] inclusive.
 export const TEST_MIN = 12
@@ -54,17 +53,6 @@ export function localDay(date: Date = new Date()): string {
 /** Today's daily test for this user, if one has been started. */
 export function findTest(tests: Test[], day: string = localDay()): Test | undefined {
   return tests.find((t) => t.test_date === day)
-}
-
-/** Whether an ISO timestamp falls on the given local calendar day. */
-export function isSameLocalDay(iso: string, day: string = localDay()): boolean {
-  const d = new Date(iso)
-  return !Number.isNaN(d.getTime()) && localDay(d) === day
-}
-
-/** Every batch recorded today (free and test alike), by device-local day. */
-export function todaysBatches(batches: Batch[], day: string = localDay()): Batch[] {
-  return batches.filter((b) => isSameLocalDay(b.created_at, day))
 }
 
 /** The batches belonging to a given daily test. */
@@ -142,6 +130,20 @@ export function nextTestDistance(
 ): number | undefined {
   const done = new Set(testBatches(batches, testId).map((b) => b.distance))
   return seededTestOrder(day).find((d) => !done.has(d))
+}
+
+/**
+ * Overall make percentage (0–100) across a set of batches, pooling makes and
+ * attempts, or null when there are no attempts. Used for the daily-test summary.
+ */
+export function overallPct(batches: { made: number; batch_size: number }[]): number | null {
+  let made = 0
+  let attempts = 0
+  for (const b of batches) {
+    made += b.made
+    attempts += b.batch_size
+  }
+  return attempts ? (100 * made) / attempts : null
 }
 
 export interface DistanceStat {

@@ -18,6 +18,7 @@ Completed items should be removed.
 Make a format (table?) for this file. Copy the top few sentences as they have changed.
 make all developer scripts at local/.
 approved users and admins can be separate.
-update app.config.json to have id and name separate
+update app.config.json to have id and name separate.
+Make sure user emails are not being sent to clients.
 
 What could have made this implementation easier for my agent post-template-clone?

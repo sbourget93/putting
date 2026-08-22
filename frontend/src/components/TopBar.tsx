@@ -55,16 +55,13 @@ function TopBar() {
       >
         <div className="menu-items">
           <NavLink to="/" end className="menu-item" onClick={closeMenu}>
-            Daily Test
-          </NavLink>
-          <NavLink to="/free" className="menu-item" onClick={closeMenu}>
-            Free Putt
+            Daily Putts
           </NavLink>
           <NavLink to="/history" className="menu-item" onClick={closeMenu}>
             History
           </NavLink>
           <NavLink to="/stats" className="menu-item" onClick={closeMenu}>
-            Stats
+            Statistics
           </NavLink>
           {/* Template-only, and absent from a fork's build entirely. */}
           {IS_TEMPLATE && (
