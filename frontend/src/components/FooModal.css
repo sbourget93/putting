@@ -1,0 +1,79 @@
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  /* Above the top bar (3) and the navigation drawer (2). */
+  z-index: 10;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  /* Anchored near the top so the on-screen keyboard doesn't cover the fields.
+     Clears the top bar, then adds the same gap used on the sides. */
+  padding: calc(var(--top-bar-height) + 16px) 16px 16px;
+  overflow-y: auto;
+  background: rgb(0 0 0 / 45%);
+}
+
+.modal {
+  width: 100%;
+  max-width: 360px;
+  padding: 20px;
+  border-radius: 14px;
+  background: Canvas;
+  color: CanvasText;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 30%);
+}
+
+.modal-title {
+  margin: 0 0 16px;
+  font-size: 1.1rem;
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal-form .field > span {
+  font-size: 0.8rem;
+  color: GrayText;
+}
+
+.modal-form input {
+  min-height: 44px;
+  padding-inline: 12px;
+  border: 1px solid color-mix(in srgb, CanvasText 30%, transparent);
+  border-radius: 8px;
+  background: Field;
+  color: FieldText;
+  font: inherit;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.modal-actions button {
+  min-height: 44px;
+  padding-inline: 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--brand);
+  color: var(--brand-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.modal-actions button.secondary {
+  background: color-mix(in srgb, CanvasText 12%, transparent);
+  color: CanvasText;
+}

@@ -1,0 +1,4 @@
+# Test-only dependencies (not needed to run the app). Installed into the image so
+# the documented `docker-compose run --rm backend python -m unittest ...` works.
+# httpx backs FastAPI's TestClient, used by the integration tests.
+httpx>=0.27,<1.0

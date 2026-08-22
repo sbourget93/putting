@@ -1,0 +1,50 @@
+# Local development stack. Run from this directory:
+#   docker compose up
+# Then open http://localhost:5173
+services:
+  # Backend API (FastAPI). --reload restarts uvicorn on code changes.
+  backend:
+    build:
+      context: ../backend
+    ports:
+      # Not needed by the frontend (it proxies over the compose network), but
+      # handy for curling the API directly while debugging.
+      - '8000:8000'
+    environment:
+      # Google login config; real values belong in a gitignored .env in this
+      # directory, which compose reads automatically. There is no auth bypass:
+      # the backend refuses to start unless GOOGLE_CLIENT_ID is set, so local dev
+      # signs in with a real Google account too (localhost is a valid GIS
+      # origin). Put your own email in ADMIN_EMAILS to get admin locally.
+      # COOKIE_SECURE=0 because local dev is http.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID in local/.env}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      SESSION_SECRET: ${SESSION_SECRET:-dev-insecure-secret}
+      COOKIE_SECURE: '0'
+    volumes:
+      # Bind the source for --reload. This also persists app.db on the host, so
+      # the event log survives container restarts.
+      - ../backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ../frontend
+    ports:
+      - '5173:5173'
+    depends_on:
+      - backend
+    environment:
+      # Where vite.config.ts reads app.config.json and .is_template from.
+      APP_REPO_ROOT: /repo
+      API_PROXY_TARGET: http://backend:8000
+    volumes:
+      # Bind the source for hot reload, but keep the image's node_modules:
+      # dependencies are installed for the container's platform, not the host's.
+      - ../frontend:/app
+      - frontend_node_modules:/app/node_modules
+      # Read-only view of the repo root, for the shared config files above.
+      - ..:/repo:ro
+
+volumes:
+  frontend_node_modules:

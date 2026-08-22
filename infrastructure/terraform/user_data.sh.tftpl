@@ -1,0 +1,91 @@
+#!/bin/bash
+set -euxo pipefail
+
+# ---- Base: install docker/git/awscli and add swap for the t4g.nano's 512MB ----
+apt-get update -y
+apt-get install -y docker.io git unzip curl%{ if dns_enabled } certbot python3-certbot-dns-route53%{ endif }
+
+# awscli v2 (bundled) — no longer an apt package on Ubuntu 24.04 (Noble); arm64 build.
+curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o /tmp/awscliv2.zip
+unzip -q /tmp/awscliv2.zip -d /tmp
+/tmp/aws/install
+
+systemctl enable --now docker
+usermod -aG docker ubuntu
+
+if [ ! -f /swapfile ]; then
+  fallocate -l 1G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+%{ if dns_enabled ~}
+
+# ---- TLS: obtain + persist a Let's Encrypt cert via DNS-01 (Route 53) ----
+# Runs on the host (a container is blocked by the default IMDSv2 hop limit).
+# Certs live in S3 so a recycled box reuses them.
+aws s3 sync ${letsencrypt_s3}/ /etc/letsencrypt/ --quiet 2>/dev/null || true
+if ! openssl x509 -checkend 2592000 -noout \
+    -in /etc/letsencrypt/live/${domain}/fullchain.pem 2>/dev/null; then
+  certbot certonly \
+    --authenticator dns-route53 \
+    --non-interactive --agree-tos \
+    %{ if certbot_email != "" }--email ${certbot_email}%{ else }--register-unsafely-without-email%{ endif } \
+    -d ${domain} \
+    --deploy-hook "aws s3 sync /etc/letsencrypt/ ${letsencrypt_s3}/ --quiet && docker exec gateway nginx -s reload 2>/dev/null || true"
+  aws s3 sync /etc/letsencrypt/ ${letsencrypt_s3}/ --quiet
+fi
+%{ endif ~}
+
+# ---- Deploy: clone, build the three images, run the three containers ----
+# Gateway runs last: nginx resolves the frontend/backend names at startup, so
+# those containers must already exist on the network. Secrets come from SSM (the
+# repo is public); a missing parameter leaves the value empty rather than failing.
+git clone ${repo_url} /app
+
+# Fetch the shared login secrets first and fail closed: without them the backend
+# would either refuse to start or serve an open write path, so abort the deploy
+# with a clear signal rather than bring the app up misconfigured.
+set +x  # stop command tracing so secrets never reach the cloud-init log
+SSM() { aws ssm get-parameter --region ${region} --name "$1" --with-decryption \
+  --query Parameter.Value --output text 2>/dev/null || true; }
+GOOGLE_CLIENT_ID="$(SSM ${secrets_path}/google_client_id)"
+ADMIN_EMAILS="$(SSM ${secrets_path}/admin_emails)"
+SESSION_SECRET="$(SSM ${secrets_path}/session_secret)"
+for required in GOOGLE_CLIENT_ID SESSION_SECRET; do
+  if [ -z "$${!required}" ]; then
+    echo "FATAL: ${secrets_path}/$(echo "$required" | tr '[:upper:]' '[:lower:]') is not set in SSM; refusing to deploy." >&2
+    exit 1
+  fi
+done
+
+docker network create ${app_name}-net 2>/dev/null || true
+docker build -t ${app_name}-frontend -f /app/frontend/Dockerfile.prod /app
+docker build -t ${app_name}-backend /app/backend
+docker build -t ${app_name}-gateway /app/gateway
+
+docker run -d --restart unless-stopped \
+  --network ${app_name}-net \
+  --name frontend \
+  ${app_name}-frontend
+
+docker run -d --restart unless-stopped \
+  --network ${app_name}-net \
+  --name backend \
+  -e S3_BUCKET=${s3_bucket} \
+  -e S3_EVENTS_PREFIX=${s3_events_prefix} \
+  -e AWS_DEFAULT_REGION=${region} \
+  -e GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+  -e ADMIN_EMAILS="$ADMIN_EMAILS" \
+  -e SESSION_SECRET="$SESSION_SECRET" \
+  -e COOKIE_SECURE=1 \
+  ${app_name}-backend
+
+docker run -d --restart unless-stopped \
+  --network ${app_name}-net \
+  --name gateway \
+  -p 80:80 -p 443:443 \
+  -e DOMAIN=${domain} \
+  -v /etc/letsencrypt:/etc/letsencrypt:ro \
+  ${app_name}-gateway

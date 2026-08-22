@@ -1,0 +1,155 @@
+.sync-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sync-envelope {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sync-envelope:active {
+  background: rgb(255 255 255 / 15%);
+}
+
+/* Count bubble on the envelope. Pending is neutral (brand); alert (dead-letter) is red. */
+.sync-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--brand);
+  border: 1px solid var(--brand);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
+
+.sync-badge--alert {
+  right: auto;
+  left: 4px;
+  background: #c0392b;
+  color: #fff;
+  border-color: #fff;
+}
+
+.sync-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+}
+
+.sync-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 5;
+  width: 280px;
+  max-width: 90vw;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: Canvas;
+  color: CanvasText;
+  border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 25%);
+}
+
+.sync-panel-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.sync-panel-pending {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: GrayText;
+}
+
+.sync-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: GrayText;
+}
+
+.sync-dot--idle {
+  background: #2e7d32;
+}
+
+.sync-dot--syncing {
+  background: #b7791f;
+}
+
+.sync-dot--offline {
+  background: GrayText;
+}
+
+.sync-deadletter {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, CanvasText 12%, Canvas);
+}
+
+.sync-deadletter-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #c0392b;
+}
+
+.sync-deadletter-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, #c0392b 30%, Canvas);
+  border-radius: 8px;
+}
+
+.sync-deadletter-event {
+  font-size: 0.9rem;
+}
+
+.sync-deadletter-meta {
+  font-size: 0.75rem;
+  color: GrayText;
+}
+
+.sync-panel-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.sync-panel-actions button {
+  flex: 1;
+  min-height: 36px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, CanvasText 25%, Canvas);
+  border-radius: 8px;
+  background: Canvas;
+  color: CanvasText;
+  font-size: 0.85rem;
+  cursor: pointer;
+}

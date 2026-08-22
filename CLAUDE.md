@@ -1,0 +1,1 @@
+Start every session by immediately reading `./AGENTS.md`.

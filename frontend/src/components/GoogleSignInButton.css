@@ -1,0 +1,43 @@
+.google-signin-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.google-signin-note {
+  margin: 0;
+  font-size: 13px;
+  color: CanvasText;
+  opacity: 0.7;
+}
+
+/* Colors follow Google's sign-in branding guidelines and are intentionally
+   fixed rather than theme-aware. */
+.google-signin {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid #747775;
+  border-radius: 20px;
+  background: #fff;
+  color: #1f1f1f;
+  font-family: 'Roboto', var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.google-signin:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.google-signin svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}

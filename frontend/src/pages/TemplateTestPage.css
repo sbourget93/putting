@@ -1,0 +1,121 @@
+.template-test {
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
+.foo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.foo-header h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.add-btn {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: var(--brand);
+  color: var(--brand-text);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Card wrapping the list, so it reads as one object rather than loose rows. */
+.foo-panel {
+  margin-top: 12px;
+  padding-inline: 12px;
+  border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+  border-radius: 12px;
+  background: Canvas;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+}
+
+.foo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.foo-entry {
+  border-bottom: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+}
+
+.foo-entry:last-child {
+  border-bottom: none;
+}
+
+.foo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding-block: 6px;
+}
+
+.foo-values {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.foo-public {
+  overflow-wrap: anywhere;
+}
+
+.foo-private {
+  font-size: 0.8rem;
+  color: GrayText;
+  overflow-wrap: anywhere;
+}
+
+.foo-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: GrayText;
+  cursor: pointer;
+}
+
+.icon-btn:active {
+  background: color-mix(in srgb, CanvasText 10%, transparent);
+}
+
+.icon-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.foo-empty {
+  color: GrayText;
+}
+
+.foo-error {
+  color: rgb(190 30 30);
+}

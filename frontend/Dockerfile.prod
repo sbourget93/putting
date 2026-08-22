@@ -1,0 +1,20 @@
+# Production image: build the SPA, then serve the static bundle with nginx.
+# Build context is the repo ROOT (not frontend/) so the Vite build can read the
+# shared app.config.json. Build:
+#   docker build -t <app>-frontend -f frontend/Dockerfile.prod .
+
+FROM node:24-alpine AS build
+WORKDIR /app
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+# Repo-root config the app-config plugin resolves via APP_REPO_ROOT. The bracket
+# glob copies .is_template only when it exists (as in the template repo itself), so
+# template-only pages ship here; a fork deletes the marker and drops them.
+COPY app.config.json .is_templat[e] /repo/
+ENV APP_REPO_ROOT=/repo
+RUN npm run build
+
+FROM nginx:alpine
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html

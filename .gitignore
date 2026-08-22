@@ -1,0 +1,43 @@
+# macOS
+.DS_Store
+
+# Environment / secrets
+.env
+.env.local
+*.local
+*.pem
+
+# Dependencies
+node_modules
+__pycache__/
+*.py[cod]
+.venv/
+
+# Local database (the event log; rebuilt from S3 in prod, never committed)
+*.db
+*.db-wal
+*.db-shm
+
+# Terraform (keep .terraform.lock.hcl tracked)
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Build output
+dist
+dist-ssr
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor
+.idea/
+*.swp
+.vscode/*
+!.vscode/extensions.json
