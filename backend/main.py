@@ -203,6 +203,35 @@ def get_foos(request: Request):
     return {"version": version, "foos": foos}
 
 
+def _owner_name(conn, owner: str) -> str | None:
+    """Display name for an owner email, from the users projection, or None.
+
+    Email is the internal owner key, but another user's email must never reach the
+    client. So the owner-scoped query endpoints expose this resolved name instead
+    of the email when the viewer is looking at someone else's data."""
+    row = conn.execute(
+        "SELECT name FROM users WHERE email = ? AND deleted_at IS NULL", (owner,)
+    ).fetchone()
+    return row["name"] if row else None
+
+
+@app.get("/users")
+def get_users():
+    """Known user identities (from UserSignedIn), plus the current version.
+
+    Public so any viewer can render a display name for whoever's data is on screen.
+    Only `sub`/`name`/`picture` are exposed — never `email` (see projections/users.py).
+    The offline engine calls this as its `users` snapshot.
+    """
+    with db.read() as conn:
+        rows = conn.execute(
+            "SELECT sub, name, picture FROM users "
+            "WHERE deleted_at IS NULL ORDER BY created_at"
+        ).fetchall()
+        version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
+    return {"version": version, "users": [dict(r) for r in rows]}
+
+
 @app.get("/batches")
 def get_batches(request: Request):
     """Active putt batches for the resolved owner, plus the current version.
@@ -210,6 +239,9 @@ def get_batches(request: Request):
     Owner-scoped (see _read_owner): an admin gets their own batches, everyone else
     gets the demo owner's. The offline engine calls this as its `batches` snapshot;
     non-admin pages read it online. Soft-deleted rows are omitted.
+
+    Returns `owner_name` (a display name), never the owner email, so browsing
+    another user's data never leaks their email.
     """
     owner = _read_owner(request)
     with db.read() as conn:
@@ -218,8 +250,9 @@ def get_batches(request: Request):
             "FROM batches WHERE owner = ? AND deleted_at IS NULL ORDER BY created_at",
             (owner,),
         ).fetchall()
+        owner_name = _owner_name(conn, owner)
         version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
-    return {"version": version, "owner": owner, "batches": [dict(r) for r in rows]}
+    return {"version": version, "owner_name": owner_name, "batches": [dict(r) for r in rows]}
 
 
 @app.get("/tests")
@@ -227,7 +260,7 @@ def get_tests(request: Request):
     """Active daily tests for the resolved owner, plus the current version.
 
     Owner-scoped like /batches. The client maps a test to its batches by test_id to
-    compute daily-test progress.
+    compute daily-test progress. Returns `owner_name`, never the owner email.
     """
     owner = _read_owner(request)
     with db.read() as conn:
@@ -236,5 +269,66 @@ def get_tests(request: Request):
             "FROM tests WHERE owner = ? AND deleted_at IS NULL ORDER BY test_date",
             (owner,),
         ).fetchall()
+        owner_name = _owner_name(conn, owner)
         version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
-    return {"version": version, "owner": owner, "tests": [dict(r) for r in rows]}
+    return {"version": version, "owner_name": owner_name, "tests": [dict(r) for r in rows]}
+
+
+def global_average(users: list[dict]) -> list[dict]:
+    """Unweighted mean of each user's make % per distance.
+
+    Each user contributes one percentage per distance they have attempts at, so a
+    user with many putts counts the same as one with few (that is the whole point:
+    heavy putters must not skew the average). Distances nobody threw are absent."""
+    by_distance: dict[int, list[float]] = {}
+    for user in users:
+        for stat in user["stats"]:
+            if stat["attempts"]:
+                by_distance.setdefault(stat["distance"], []).append(stat["pct"])
+    return [
+        {"distance": distance, "pct": sum(pcts) / len(pcts), "users": len(pcts)}
+        for distance, pcts in sorted(by_distance.items())
+    ]
+
+
+@app.get("/stats")
+def get_stats():
+    """Per-user and global make-%-by-distance, for the comparison view.
+
+    Public (stats are publicly viewable) and email-free: users are keyed by the
+    stable Google `sub` with a display name, joined from the users projection, so
+    no email is ever returned. A user appears once they have an identity (signed in
+    at least once) and have recorded putts. `global` is the unweighted mean of each
+    user's percentage per distance (see global_average).
+    """
+    with db.read() as conn:
+        rows = conn.execute(
+            "SELECT u.sub AS sub, u.name AS name, u.picture AS picture, "
+            "b.distance AS distance, SUM(b.made) AS made, SUM(b.batch_size) AS attempts "
+            "FROM batches b JOIN users u ON u.email = b.owner AND u.deleted_at IS NULL "
+            "WHERE b.deleted_at IS NULL "
+            "GROUP BY u.sub, b.distance "
+            "ORDER BY u.name, b.distance"
+        ).fetchall()
+        version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
+
+    # Group the flat (sub, distance) rows into one entry per user. Dict insertion
+    # order follows the ORDER BY, so users stay sorted by name.
+    users: dict[str, dict] = {}
+    for r in rows:
+        user = users.get(r["sub"])
+        if user is None:
+            user = {"sub": r["sub"], "name": r["name"], "picture": r["picture"], "stats": []}
+            users[r["sub"]] = user
+        made, attempts = r["made"], r["attempts"]
+        user["stats"].append(
+            {
+                "distance": r["distance"],
+                "made": made,
+                "attempts": attempts,
+                "pct": (100 * made / attempts) if attempts else 0,
+            }
+        )
+
+    users_list = list(users.values())
+    return {"version": version, "users": users_list, "global": global_average(users_list)}

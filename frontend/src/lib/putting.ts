@@ -13,6 +13,14 @@ export interface Test {
   test_date: string // local calendar day, YYYY-MM-DD
 }
 
+/** A user identity as the server projection returns it (see backend/projections/users.py).
+ *  Never carries an email — only a display name and picture, keyed by Google `sub`. */
+export interface AppUser {
+  sub: string
+  name: string
+  picture: string | null
+}
+
 /** A putt batch as the server projection returns it (see backend/projections/batches.py). */
 export interface Batch {
   batch_id: string
@@ -151,6 +159,22 @@ export interface DistanceStat {
   made: number
   attempts: number
   pct: number // 0–100
+}
+
+/** One user's make-%-by-distance, as GET /stats returns it (see backend main.get_stats).
+ *  Keyed by the stable Google `sub`; never carries an email. */
+export interface UserStats {
+  sub: string
+  name: string
+  picture: string | null
+  stats: DistanceStat[]
+}
+
+/** A point on the global-average line: the unweighted mean of each user's pct at a distance. */
+export interface GlobalStat {
+  distance: number
+  pct: number
+  users: number // how many users contributed to this distance's average
 }
 
 /**

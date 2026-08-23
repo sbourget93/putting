@@ -1,0 +1,1 @@
+Remove "kind" from batch docs and sql.

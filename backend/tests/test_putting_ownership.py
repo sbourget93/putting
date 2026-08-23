@@ -11,6 +11,7 @@ Needs httpx (requirements-dev.txt), so it runs in the backend container:
   docker-compose run --rm backend python -m unittest tests.test_putting_ownership
 """
 
+import json
 import os
 import tempfile
 import unittest
@@ -114,8 +115,100 @@ class PuttingOwnershipTest(unittest.TestCase):
 
             client.post("/auth/logout")
             body = client.get("/batches").json()
-            self.assertEqual(body["owner"], ALICE)
+            # The demo owner's data is served, but their email is never exposed.
+            self.assertNotIn("owner", body)
             self.assertEqual([b["batch_id"] for b in body["batches"]], ["b1"])
+
+    def test_identity_resolves_to_a_name_and_never_leaks_email(self):
+        with TestClient(self._app) as client:
+            self._login_as(client, ALICE)
+            self.assertEqual(
+                client.post(
+                    "/commands",
+                    json={
+                        "events": [
+                            {
+                                "event_id": "u1",
+                                "type": "UserSignedIn",
+                                "aggregate_id": "sub-alice",
+                                "data": {"name": "Alice A", "picture": None},
+                                "created_at": "2026-08-22T00:00:00Z",
+                            }
+                        ]
+                    },
+                ).status_code,
+                200,
+            )
+            self.assertEqual(self._record_free(client, "b1", "e1").status_code, 200)
+
+            # /users exposes the display name, keyed by the stable sub, never email.
+            users = client.get("/users").json()["users"]
+            self.assertEqual(users, [{"sub": "sub-alice", "name": "Alice A", "picture": None}])
+
+            # The owner-scoped reads resolve the owner email to that name.
+            self.assertEqual(client.get("/batches").json()["owner_name"], "Alice A")
+
+    def _record_identity(self, client, sub, name):
+        return client.post(
+            "/commands",
+            json={
+                "events": [
+                    {
+                        "event_id": f"id-{sub}",
+                        "type": "UserSignedIn",
+                        "aggregate_id": sub,
+                        "data": {"name": name, "picture": None},
+                        "created_at": "2026-08-22T00:00:00Z",
+                    }
+                ]
+            },
+        )
+
+    def _record_putt(self, client, batch_id, distance, batch_size, made):
+        return client.post(
+            "/commands",
+            json={
+                "events": [
+                    {
+                        "event_id": batch_id,
+                        "type": "BatchRecorded",
+                        "aggregate_id": batch_id,
+                        "data": {
+                            "kind": "free",
+                            "distance": distance,
+                            "batch_size": batch_size,
+                            "made": made,
+                        },
+                        "created_at": "2026-08-22T00:00:00Z",
+                    }
+                ]
+            },
+        )
+
+    def test_stats_are_per_user_and_the_global_average_is_unweighted(self):
+        with TestClient(self._app) as client:
+            # Alice: a perfect 5-putt set at 12 ft. Bob: 0/100 at the same distance.
+            self._login_as(client, ALICE)
+            self.assertEqual(self._record_identity(client, "sub-alice", "Alice A").status_code, 200)
+            self.assertEqual(self._record_putt(client, "a12", 12, 5, 5).status_code, 200)
+            self._login_as(client, BOB)
+            self.assertEqual(self._record_identity(client, "sub-bob", "Bob B").status_code, 200)
+            self.assertEqual(self._record_putt(client, "b12", 12, 100, 0).status_code, 200)
+
+            body = client.get("/stats").json()
+
+            # Users are keyed by sub, carry a name, and never expose an email.
+            self.assertNotIn("email", json.dumps(body))
+            by_sub = {u["sub"]: u for u in body["users"]}
+            self.assertEqual(set(by_sub), {"sub-alice", "sub-bob"})
+            self.assertEqual(by_sub["sub-alice"]["name"], "Alice A")
+            self.assertEqual(by_sub["sub-alice"]["stats"][0], {"distance": 12, "made": 5, "attempts": 5, "pct": 100.0})
+
+            # Global at 12 ft is the mean of the two percentages (100, 0) = 50 —
+            # unweighted, so Bob's 100 putts do not drag it toward 0.
+            g12 = next(g for g in body["global"] if g["distance"] == 12)
+            self.assertEqual(g12["pct"], 50.0)
+            self.assertEqual(g12["users"], 2)
 
     def test_daily_test_start_and_first_putt_commit_together(self):
         with TestClient(self._app) as client:

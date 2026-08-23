@@ -9,6 +9,8 @@
 import { createContext, useContext } from 'react'
 
 export type User = {
+  /** Google's stable per-account id; used as the aggregate id for UserSignedIn. */
+  sub: string
   email: string
   name: string
   picture: string | null

@@ -102,7 +102,10 @@ def auth_google(body: GoogleCredential, request: Request):
 
     email = claims.get("email", "")
     # Store identity only; admin is derived live from ADMIN_EMAILS on each request.
+    # `sub` is Google's stable per-account id; the client uses it as the aggregate
+    # id when it records a UserSignedIn event (see projections/users.py).
     request.session["user"] = {
+        "sub": claims.get("sub"),
         "email": email,
         "name": claims.get("name") or email,
         "picture": claims.get("picture"),

@@ -24,4 +24,4 @@ echo "==> Replacing $LOCAL_DB with the prod copy..."
 rm -f "$LOCAL_DB" "$LOCAL_DB-wal" "$LOCAL_DB-shm"
 scp -i "$PEM" "${SSH_OPTS[@]}" "$HOST:/tmp/prod-app.db" "$LOCAL_DB"
 
-echo "==> Done. Start the stack again with: (cd local && docker compose up)"
+echo "==> Done."

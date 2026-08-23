@@ -15,10 +15,14 @@ Completed items should be removed.
 | **Global `box-sizing: border-box` reset (CSS bug).** `index.css` ships no box-sizing reset. With the default `content-box`, any full-width element that also has padding (a `.page` wrapper, a card) overflows the viewport on mobile: the left looks padded while the content spills off the right edge. | Mobile is the primary target and padded full-width containers are the norm, so this bites almost immediately and is hard to diagnose. A one-line `*, *::before, *::after { box-sizing: border-box }` prevents it. This app added exactly that. |
 | **Per-app admin scoping for per-user apps.** Admins come from a single shared `/shared/admin_emails` SSM parameter, so adding one participant makes them an admin of every app on that path. An app whose model is "each participant owns their own data" (see the ownership row) needs its own allowlist, which means setting `secrets_path` per app and populating that path. | If per-user ownership becomes the template default, cross-app admin leakage becomes a real hazard. The template should make per-app secret scoping an easy, documented switch (or default `secrets_path` to the app name). |
 | **Surface the OAuth-origins step at deploy time.** A fresh app deploys cleanly and comes up, but Google sign-in fails silently until the new subdomain is added to the shared OAuth client's authorized JavaScript origins (README setup step 5). | "Deployed successfully but no one can log in" is a confusing first-run failure. The template could restate this in the infra docs or deploy output, not only in the root README that gets emptied on clone. |
+| **User identity projection keyed by Google `sub`, with email kept off the client.** A `users` projection (fed by a client-enqueued `UserSignedIn` on login) maps the stable Google `sub` to a display name/picture, so the UI can show a name for whoever's data is on screen. Owner-scoped query endpoints return a resolved `owner_name` instead of the owner email, and `/users` never returns email; a user's own email still reaches their own client via `/auth/me`. | Any per-user app needs to show *who* without leaking *everyone's email*. Email is the internal `owner` key but should never identify a user to other clients. Keying on `sub` (which never changes) rather than email is the correct stable-id pattern, and the email-off-the-client rule is a good template default. Addresses the "user emails not sent to clients" and "users table" notes below. |
 Make a format (table?) for this file. Copy the top few sentences as they have changed.
 make all developer scripts at local/.
 approved users and admins can be separate.
 update app.config.json to have id and name separate.
 Make sure user emails are not being sent to clients.
+Add a TODO.md.
+Users table somehow?
+look ahead user search example?
 
 What could have made this implementation easier for my agent post-template-clone?

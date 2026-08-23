@@ -1,14 +1,27 @@
 /**
  * Make-percentage-by-distance line chart, drawn as a self-contained SVG.
  *
- * X is distance (ft), Y is make % (0–100). The primary series (--brand) is drawn
- * over an optional grey `baseline` series, letting a page compare, say, today's
- * putts against the user's all-time average. No chart library: a handful of scales
- * and an SVG polyline keep it tiny, offline, and theme-aware (axes use
- * currentColor). The SVG scales to its container via viewBox.
+ * X is distance (ft), Y is make % (0–100). Takes N named series and draws one
+ * polyline + dots per series, each in its own color (set inline, since colors are
+ * assigned dynamically from the categorical palette). No chart library: a handful
+ * of scales and SVG polylines keep it tiny, offline, and theme-aware (axes use
+ * CanvasText). The SVG scales to its container via viewBox.
+ *
+ * A `dashed` series (e.g. the global average) is drawn thinner and behind the
+ * solid ones; an `emphasis` series (e.g. "you") is drawn thicker and on top.
+ * Identity is carried by the caller's legend, never by color alone.
  */
 import type { DistanceStat } from '../lib/putting'
 import './PuttingChart.css'
+
+export interface SeriesSpec {
+  id: string
+  label: string
+  color: string // any CSS color, typically a var(--series-N)
+  stats: DistanceStat[]
+  dashed?: boolean
+  emphasis?: boolean
+}
 
 const W = 340
 const H = 240
@@ -17,15 +30,17 @@ const PLOT_W = W - PAD.left - PAD.right
 const PLOT_H = H - PAD.top - PAD.bottom
 const Y_TICKS = [0, 25, 50, 75, 100]
 
-export default function PuttingChart({
-  stats,
-  baseline = [],
-}: {
-  stats: DistanceStat[]
-  baseline?: DistanceStat[]
-}) {
-  // Scale X across both series so the two lines share a domain and line up.
-  const allDistances = [...stats, ...baseline].map((s) => s.distance)
+// Draw dashed (background) series first, plain next, emphasized last (on top).
+function depth(s: SeriesSpec): number {
+  if (s.dashed) return 0
+  return s.emphasis ? 2 : 1
+}
+
+export default function PuttingChart({ series }: { series: SeriesSpec[] }) {
+  const drawn = series.filter((s) => s.stats.length > 0)
+
+  // Scale X across every series so all lines share one domain and line up.
+  const allDistances = drawn.flatMap((s) => s.stats.map((p) => p.distance))
   const minD = allDistances.length ? Math.min(...allDistances) : 0
   const maxD = allDistances.length ? Math.max(...allDistances) : 1
   const span = maxD - minD || 1 // avoid /0 when there's a single distance
@@ -33,13 +48,16 @@ export default function PuttingChart({
   const x = (d: number) => PAD.left + (span === 0 ? PLOT_W / 2 : ((d - minD) / span) * PLOT_W)
   const y = (pct: number) => PAD.top + (1 - pct / 100) * PLOT_H
 
-  const points = stats.map((s) => `${x(s.distance)},${y(s.pct)}`).join(' ')
-  const baselinePoints = baseline.map((s) => `${x(s.distance)},${y(s.pct)}`).join(' ')
-  // X-axis ticks: label every distance in the wider series, thinned so they don't collide.
-  const axisStats = baseline.length > stats.length ? baseline : stats
+  // X-axis ticks come from whichever series covers the most distances.
+  const axisStats = drawn.reduce<DistanceStat[]>(
+    (widest, s) => (s.stats.length > widest.length ? s.stats : widest),
+    [],
+  )
   const labelStep = Math.max(1, Math.ceil(axisStats.length / 8))
 
-  const summary = stats.length
+  const ordered = [...drawn].sort((a, b) => depth(a) - depth(b))
+
+  const summary = allDistances.length
     ? `Make percentage by distance from ${minD} to ${maxD} feet`
     : 'No data'
 
@@ -79,25 +97,44 @@ export default function PuttingChart({
         distance (ft)
       </text>
 
-      {/* The baseline (all-time) series, drawn behind the primary one */}
-      {baseline.length > 1 && <polyline className="baseline-line" points={baselinePoints} />}
-      {baseline.map((s) => (
-        <circle key={s.distance} className="baseline-dot" cx={x(s.distance)} cy={y(s.pct)} r={2}>
-          <title>
-            All-time {s.distance} ft — {s.made}/{s.attempts} ({Math.round(s.pct)}%)
-          </title>
-        </circle>
-      ))}
-
-      {/* The primary series */}
-      {stats.length > 1 && <polyline className="series-line" points={points} />}
-      {stats.map((s) => (
-        <circle key={s.distance} className="series-dot" cx={x(s.distance)} cy={y(s.pct)} r={3.5}>
-          <title>
-            {s.distance} ft — {s.made}/{s.attempts} ({Math.round(s.pct)}%)
-          </title>
-        </circle>
-      ))}
+      {/* One polyline + dots per series, in back-to-front order. */}
+      {ordered.map((s) => {
+        const points = s.stats.map((p) => `${x(p.distance)},${y(p.pct)}`).join(' ')
+        const lineWidth = s.emphasis ? 3 : s.dashed ? 1.5 : 2.2
+        const dotR = s.emphasis ? 4 : s.dashed ? 2.5 : 3.5
+        return (
+          <g key={s.id}>
+            {s.stats.length > 1 && (
+              <polyline
+                className="series-line"
+                points={points}
+                style={{
+                  stroke: s.color,
+                  strokeWidth: lineWidth,
+                  strokeDasharray: s.dashed ? '5 4' : undefined,
+                }}
+              />
+            )}
+            {s.stats.map((p) => (
+              <circle
+                key={p.distance}
+                className="series-dot"
+                cx={x(p.distance)}
+                cy={y(p.pct)}
+                r={dotR}
+                style={{ fill: s.color }}
+              >
+                <title>
+                  {/* attempts === 0 marks a computed line (the global average) with
+                      no underlying made/attempts, so show the percentage alone. */}
+                  {s.label} — {p.distance} ft —{' '}
+                  {p.attempts > 0 ? `${p.made}/${p.attempts} (${Math.round(p.pct)}%)` : `${Math.round(p.pct)}%`}
+                </title>
+              </circle>
+            ))}
+          </g>
+        )
+      })}
     </svg>
   )
 }
