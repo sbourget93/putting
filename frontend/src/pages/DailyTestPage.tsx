@@ -11,53 +11,51 @@
  *
  * Non-admins see the demo owner's progress, read-only.
  */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useSync } from '../offline/SyncContext'
 import { newEvent } from '../offline/commands'
 import type { CommandEvent } from '../offline/types'
 import { usePuttingData } from '../lib/usePuttingData'
 import StatsChartPanel from '../components/StatsChartPanel'
+import PuttEditModal from '../components/PuttEditModal'
 import {
   TEST_DISTANCES,
   TEST_PUTTS,
-  findTest,
   localDay,
   nextTestDistance,
   overallPct,
+  overallPctFromStats,
   remainingTestDistances,
   testBatches,
+  type Batch,
 } from '../lib/putting'
 import './DailyTestPage.css'
 
 function DailyTestPage() {
   const { enqueue } = useSync()
-  const { tests, batches, readOnly, loading, error } = usePuttingData()
+  const { test, todayBatches, baselineStats, readOnly, loading, error } = usePuttingData()
+  const [editing, setEditing] = useState<Batch | null>(null)
 
   const today = localDay()
-  const test = findTest(tests, today)
   const testId = test?.test_id ?? null
 
   const remaining = useMemo(
-    () => remainingTestDistances(batches, testId),
-    [batches, testId],
+    () => remainingTestDistances(todayBatches, testId),
+    [todayBatches, testId],
   )
-  const todays = useMemo(() => testBatches(batches, testId), [batches, testId])
+  const todays = useMemo(() => testBatches(todayBatches, testId), [todayBatches, testId])
   const doneCount = TEST_DISTANCES.length - remaining.length
 
-  // Lifetime baseline: every test putt except today's, so the summary and the
-  // chart's grey line compare today against the user's history, not itself.
-  const lifetimeBatches = useMemo(
-    () => batches.filter((b) => b.kind === 'test' && b.test_id !== testId),
-    [batches, testId],
-  )
-  const lifetimePct = useMemo(() => overallPct(lifetimeBatches), [lifetimeBatches])
+  // Lifetime baseline arrives pre-aggregated by distance (excluding today), so the
+  // summary and the chart's grey line compare today against history, not itself.
+  const lifetimePct = useMemo(() => overallPctFromStats(baselineStats), [baselineStats])
 
   // The prompted distance is a pure function of the date-seeded order and what's
   // been recorded, so it needs no local state: it's the first distance today's
   // order still owes.
   const current = useMemo(
-    () => nextTestDistance(batches, testId, today) ?? null,
-    [batches, testId, today],
+    () => nextTestDistance(todayBatches, testId, today) ?? null,
+    [todayBatches, testId, today],
   )
 
   function record(made: number) {
@@ -80,6 +78,19 @@ function DailyTestPage() {
     enqueue(events)
   }
 
+  // Fat-finger correction: rewrite one batch's made count in place. Distance and
+  // size are fixed test slots, so they carry through unchanged.
+  function saveEdit(made: number) {
+    if (!editing) return
+    enqueue([
+      newEvent('BatchEdited', editing.batch_id, {
+        distance: editing.distance,
+        batch_size: editing.batch_size,
+        made,
+      }),
+    ])
+  }
+
   if (loading) return <section className="page"><p className="muted">Loading…</p></section>
 
   const complete = remaining.length === 0
@@ -98,39 +109,47 @@ function DailyTestPage() {
       {readOnly && <p className="muted read-only-note">Viewing the demo. Sign in as an admin to record your own.</p>}
       {error && <p className="error" role="alert">{error}</p>}
 
+      {complete && <CompleteSummary todayPct={overallPct(todays)} lifetimePct={lifetimePct} />}
+
       <StatsChartPanel
         title="Today's Putts"
         batches={todays}
-        baseline={lifetimeBatches}
+        baselineStats={baselineStats}
         emptyNote="No putts recorded yet today."
       />
 
-      {complete ? (
-        <CompleteSummary todayPct={overallPct(todays)} lifetimePct={lifetimePct} />
-      ) : readOnly ? (
-        <div className="panel">
-          <p className="muted">
-            {doneCount === 0
-              ? "Today's test hasn't been started yet."
-              : `${remaining.length} distance${remaining.length === 1 ? '' : 's'} still to go today.`}
-          </p>
-          {doneCount > 0 && <ResultsGrid batches={todays} />}
-        </div>
-      ) : (
-        <div className="panel prompt">
-          <p className="prompt-label">Putt {TEST_PUTTS} from</p>
-          <p className="prompt-distance">
-            {current} <span className="unit">ft</span>
-          </p>
-          <p className="prompt-sub">How many did you make?</p>
-          <div className="made-buttons">
-            {Array.from({ length: TEST_PUTTS + 1 }, (_, n) => (
-              <button key={n} type="button" className="made-btn" onClick={() => record(n)}>
-                {n}
-              </button>
-            ))}
+      {!complete &&
+        (readOnly ? (
+          <div className="panel">
+            <p className="muted">
+              {doneCount === 0
+                ? "Today's test hasn't been started yet."
+                : `${remaining.length} distance${remaining.length === 1 ? '' : 's'} still to go today.`}
+            </p>
           </div>
-        </div>
+        ) : (
+          <div className="panel prompt">
+            <p className="prompt-label">Putt {TEST_PUTTS} from</p>
+            <p className="prompt-distance">
+              {current} <span className="unit">ft</span>
+            </p>
+            <p className="prompt-sub">How many did you make?</p>
+            <div className="made-buttons">
+              {Array.from({ length: TEST_PUTTS + 1 }, (_, n) => (
+                <button key={n} type="button" className="made-btn" onClick={() => record(n)}>
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+
+      {todays.length > 0 && (
+        <TodayBatches batches={todays} editable={!readOnly} onEdit={setEditing} />
+      )}
+
+      {editing && (
+        <PuttEditModal batch={editing} onClose={() => setEditing(null)} onPick={saveEdit} />
       )}
     </section>
   )
@@ -168,21 +187,44 @@ function CompleteSummary({
   )
 }
 
-/** A compact 12–33 grid showing made/5 for each recorded distance today. */
-function ResultsGrid({ batches }: { batches: { distance: number; made: number }[] }) {
-  const byDistance = new Map(batches.map((b) => [b.distance, b.made]))
+/**
+ * Each recorded batch today, by distance, with a pencil to correct a fat-fingered
+ * count. The pencil is admin-only; the demo view is read-only.
+ */
+function TodayBatches({
+  batches,
+  editable,
+  onEdit,
+}: {
+  batches: Batch[]
+  editable: boolean
+  onEdit: (batch: Batch) => void
+}) {
+  const ordered = [...batches].sort((a, b) => a.distance - b.distance)
   return (
-    <ul className="results-grid">
-      {TEST_DISTANCES.map((d) => {
-        const made = byDistance.get(d)
-        return (
-          <li key={d} className={made === undefined ? 'result pending' : 'result done'}>
-            <span className="result-dist">{d}′</span>
-            <span className="result-made">{made === undefined ? '—' : `${made}/${TEST_PUTTS}`}</span>
+    <div className="panel today-batches">
+      <h2 className="section-title">Today's putts</h2>
+      <ul className="batch-lines">
+        {ordered.map((b) => (
+          <li key={b.batch_id} className="batch-line">
+            <span className="batch-line-dist">{b.distance}′</span>
+            <span className="batch-line-made">{b.made}/{b.batch_size}</span>
+            {editable && (
+              <button
+                type="button"
+                className="batch-edit-btn"
+                aria-label={`Edit ${b.distance} ft putt`}
+                onClick={() => onEdit(b)}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+                </svg>
+              </button>
+            )}
           </li>
-        )
-      })}
-    </ul>
+        ))}
+      </ul>
+    </div>
   )
 }
 

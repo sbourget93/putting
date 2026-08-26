@@ -1,35 +1,171 @@
+/* Whose-history picker: a plain labelled select, native on mobile. */
+.history-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.9rem;
+}
+
+.history-picker-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: color-mix(in srgb, CanvasText 60%, Canvas);
+}
+
+/* Lookahead combobox: an input that shows the player on screen until focused,
+   then filters the player list. Scales past a pulldown when there are many. */
+.history-search {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.history-search-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 0.9rem;
+  border: 1px solid color-mix(in srgb, CanvasText 25%, Canvas);
+  border-radius: 0.6rem;
+  background: Canvas;
+  color: CanvasText;
+  font: inherit;
+}
+
+.history-search-results {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  margin: 0.3rem 0 0;
+  padding: 0.25rem;
+  list-style: none;
+  border: 1px solid color-mix(in srgb, CanvasText 18%, Canvas);
+  border-radius: 0.6rem;
+  background: Canvas;
+  box-shadow: 0 6px 20px color-mix(in srgb, CanvasText 18%, transparent);
+  max-height: 15rem;
+  overflow-y: auto;
+}
+
+.history-search-results button {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 0.7rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: none;
+  color: CanvasText;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-search-results button:hover {
+  background: color-mix(in srgb, CanvasText 8%, Canvas);
+}
+
+.result-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.result-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-current {
+  margin-left: auto;
+  color: var(--brand);
+  font-weight: 700;
+}
+
+.history-search-none {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+}
+
+.history-trend {
+  margin-bottom: 1rem;
+}
+
 .history-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.4rem;
 }
 
-/* One compact line per entry: badge, when, then stats pushed to the right. */
-.history-row {
+.history-entry {
+  border: 1px solid color-mix(in srgb, CanvasText 12%, Canvas);
+  border-radius: 0.6rem;
+  background: Canvas;
+  overflow: hidden;
+}
+
+/* The test summary line: chevron, date, then the day's percentage on the right. */
+.test-row {
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  min-height: 40px;
-  padding: 0.3rem 0.6rem;
-  border: 1px solid color-mix(in srgb, CanvasText 12%, Canvas);
-  border-radius: 0.55rem;
-  background: Canvas;
-  text-align: left;
+  min-height: 48px;
   width: 100%;
-}
-
-.history-row[role='button'] {
+  padding: 0.4rem 0.7rem;
+  border: 0;
+  background: transparent;
+  text-align: left;
   cursor: pointer;
+  color: inherit;
+  font: inherit;
 }
 
-.history-row[role='button']:active {
+.test-row:active {
   background: color-mix(in srgb, CanvasText 5%, Canvas);
 }
 
-.kind-badge {
+.chevron {
+  flex: 0 0 auto;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: color-mix(in srgb, CanvasText 45%, Canvas);
+  transition: transform 0.15s ease;
+}
+
+.chevron.open {
+  transform: rotate(90deg);
+}
+
+.test-date {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.test-pct {
+  flex: 0 0 auto;
+  margin-left: auto;
+  min-width: 3rem;
+  text-align: right;
+  font-weight: 700;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--brand);
+}
+
+.kind-badge.free {
   flex: 0 0 auto;
   font-size: 0.68rem;
   font-weight: 700;
@@ -37,47 +173,25 @@
   text-transform: uppercase;
   padding: 0.08rem 0.4rem;
   border-radius: 999px;
-}
-
-.kind-badge.test {
-  background: color-mix(in srgb, var(--brand) 18%, Canvas);
-  color: color-mix(in srgb, var(--brand) 90%, CanvasText);
-}
-
-.kind-badge.free {
   background: color-mix(in srgb, CanvasText 10%, Canvas);
 }
 
-.row-when {
-  flex: 1 1 auto;
-  min-width: 0; /* allow the flex item to shrink so it ellipsizes instead of overflowing */
-  font-size: 0.8rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
 }
 
-.row-stats {
-  flex: 0 0 auto;
-  margin-left: auto;
-  display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-  font-variant-numeric: tabular-nums;
-  font-size: 0.92rem;
+/* The expanded graph sits flush inside the entry: strip the chart panel's own
+   frame so it doesn't read as a box-in-a-box. */
+.entry-detail {
+  padding: 0.2rem 0.6rem 0.6rem;
+  border-top: 1px solid color-mix(in srgb, CanvasText 8%, Canvas);
 }
 
-.row-distance {
-  font-weight: 600;
-}
-
-.row-made {
-  color: color-mix(in srgb, CanvasText 55%, Canvas);
-}
-
-.row-pct {
-  min-width: 2.6rem;
-  text-align: right;
-  font-weight: 700;
-  color: var(--brand);
+.entry-detail .panel {
+  border: 0;
+  border-radius: 0;
+  padding: 0.4rem 0;
+  background: transparent;
 }

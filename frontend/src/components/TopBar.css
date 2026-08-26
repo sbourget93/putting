@@ -50,6 +50,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* It's a link to home, but should read as the title: inherit the bar's color. */
+  color: inherit;
+  text-decoration: none;
 }
 
 .menu-scrim {

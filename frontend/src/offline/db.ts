@@ -16,7 +16,7 @@ const DB_NAME = 'app-offline'
 // Bump this whenever the object-store layout changes. The DB is a disposable
 // cache (the server projection is the source of truth), so a version bump just
 // resets it to the current schema — see onupgradeneeded.
-const DB_VERSION = 2
+const DB_VERSION = 3
 const SNAPSHOTS = 'snapshots'
 const KV = 'kv'
 

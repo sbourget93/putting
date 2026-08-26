@@ -1,15 +1,16 @@
 /**
  * The `batches` aggregate for the sync engine.
  *
- * `fetch` reads the authoritative, owner-scoped server projection (GET /batches).
- * `reduce` folds a single queued command onto the rows, mirroring the backend
- * handlers in backend/projections/batches.py. It runs only over the small pending
- * queue, so its job is the optimistic view of un-acked writes; the next refetch
- * replaces it with server truth. When a backend batch handler changes, mirror it
- * here and in `eventTypes`.
+ * Scoped to Daily Putts: `fetch` reads only *today's* test batches from the
+ * compact /api/daily payload, so the offline cache stays tiny (at most one row per
+ * distance) instead of the whole batch log. `reduce` folds a single queued command
+ * onto those rows, mirroring backend/projections/batches.py — its job is the
+ * optimistic view of un-acked writes; the next refetch replaces it with server
+ * truth. When a backend batch handler changes, mirror it here and in `eventTypes`.
  */
 import type { AggregateDescriptor, CommandEvent, Snapshot } from '../types'
 import { useAggregateRows } from '../SyncContext'
+import { fetchDaily, toBatch } from './daily'
 import type { Batch } from '../../lib/putting'
 
 const NAME = 'batches'
@@ -24,24 +25,9 @@ function str(data: Record<string, unknown> | undefined, key: string): string {
   return typeof value === 'string' ? value : ''
 }
 
-/** Normalize one server row into a Batch (guards the loosely-typed JSON). */
-function toBatch(raw: Batch): Batch {
-  return {
-    batch_id: raw.batch_id,
-    kind: raw.kind === 'test' ? 'test' : 'free',
-    test_id: raw.test_id ?? null,
-    distance: raw.distance,
-    batch_size: raw.batch_size,
-    made: raw.made,
-    created_at: raw.created_at,
-  }
-}
-
 async function fetchBatches(): Promise<Snapshot<Batch>> {
-  const res = await fetch('/api/batches')
-  if (!res.ok) throw new Error(`fetch batches failed: ${res.status}`)
-  const body = (await res.json()) as { version: number; batches: Batch[] }
-  return { version: body.version, rows: body.batches.map(toBatch) }
+  const body = await fetchDaily()
+  return { version: body.version, rows: body.today_batches.map(toBatch) }
 }
 
 function reduce(rows: Batch[], ev: CommandEvent): Batch[] {

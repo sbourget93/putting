@@ -6,7 +6,7 @@
  * dashed comparison line behind the primary one, with a one-line legend beneath
  * the chart. Shows a note instead of an empty chart when the set has no putts.
  */
-import { statsByDistance, type Batch } from '../lib/putting'
+import { statsByDistance, type Batch, type DistanceStat } from '../lib/putting'
 import PuttingChart, { type SeriesSpec } from './PuttingChart'
 
 const BRAND = 'var(--brand)'
@@ -17,18 +17,22 @@ export default function StatsChartPanel({
   batches,
   emptyNote,
   baseline,
+  baselineStats: baselineStatsProp,
   baselineLabel = 'All-time',
   seriesLabel = 'Today',
 }: {
-  title: string
+  title?: string
   batches: Batch[]
   emptyNote: string
+  /** The baseline line, either as raw batches (aggregated here) or pre-aggregated
+   *  by-distance stats (baselineStats). Pass at most one. */
   baseline?: Batch[]
+  baselineStats?: DistanceStat[]
   baselineLabel?: string
   seriesLabel?: string
 }) {
   const stats = statsByDistance(batches)
-  const baselineStats = baseline ? statsByDistance(baseline) : []
+  const baselineStats = baselineStatsProp ?? (baseline ? statsByDistance(baseline) : [])
   const showLegend = baselineStats.length > 0 && stats.length > 0
 
   const series: SeriesSpec[] = [
@@ -40,7 +44,7 @@ export default function StatsChartPanel({
 
   return (
     <div className="panel chart-panel">
-      <h2 className="section-title">{title}</h2>
+      {title && <h2 className="section-title">{title}</h2>}
       {stats.length === 0 ? (
         <p className="muted">{emptyNote}</p>
       ) : (

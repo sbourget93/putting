@@ -1,12 +1,14 @@
 /**
  * The `tests` aggregate for the sync engine (daily tests).
  *
- * A thin aggregate: its only event is TestStarted, so `reduce` only ever adds a
- * row. `fetch` reads the owner-scoped server projection (GET /tests). Mirrors
- * backend/projections/tests.py.
+ * Scoped to Daily Putts: `fetch` reads only *today's* test from the compact
+ * /api/daily payload, so the offline cache never grows with history. Its only
+ * event is TestStarted, so `reduce` only ever adds a row (today's, when the day's
+ * first putt starts the test). Mirrors backend/projections/tests.py.
  */
 import type { AggregateDescriptor, CommandEvent, Snapshot } from '../types'
 import { useAggregateRows } from '../SyncContext'
+import { fetchDaily } from './daily'
 import type { Test } from '../../lib/putting'
 
 const NAME = 'tests'
@@ -17,13 +19,8 @@ function str(data: Record<string, unknown> | undefined, key: string): string {
 }
 
 async function fetchTests(): Promise<Snapshot<Test>> {
-  const res = await fetch('/api/tests')
-  if (!res.ok) throw new Error(`fetch tests failed: ${res.status}`)
-  const body = (await res.json()) as { version: number; tests: Test[] }
-  return {
-    version: body.version,
-    rows: body.tests.map((t) => ({ test_id: t.test_id, test_date: t.test_date })),
-  }
+  const body = await fetchDaily()
+  return { version: body.version, rows: body.test ? [body.test] : [] }
 }
 
 function reduce(rows: Test[], ev: CommandEvent): Test[] {

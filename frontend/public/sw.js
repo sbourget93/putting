@@ -23,8 +23,8 @@
  *
  * Bump CACHE to force a clean sweep of old entries on the next activate.
  */
-const CACHE = 'app-shell-v2'
-const SHELL = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest']
+const CACHE = 'app-shell-v3'
+const SHELL = ['/', '/index.html', '/favicon.png', '/apple-touch-icon.png', '/manifest.webmanifest']
 
 // The entry JS/CSS have fingerprinted names we can't hard-code. The first page
 // load fetches them *before* this worker controls the page, so they'd never be

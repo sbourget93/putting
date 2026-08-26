@@ -1,0 +1,78 @@
+.board-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  counter-reset: none;
+}
+
+.board-entry {
+  border: 1px solid color-mix(in srgb, CanvasText 12%, Canvas);
+  border-radius: 0.6rem;
+  background: Canvas;
+  overflow: hidden;
+}
+
+.board-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 52px;
+  padding: 0.4rem 0.7rem;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.board-row:active {
+  background: color-mix(in srgb, CanvasText 5%, Canvas);
+}
+
+.board-rank {
+  flex: 0 0 auto;
+  min-width: 1.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, CanvasText 50%, Canvas);
+  text-align: center;
+}
+
+.board-avatar {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.board-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.board-pct {
+  flex: 0 0 auto;
+  margin-left: auto;
+  min-width: 3rem;
+  text-align: right;
+  font-weight: 700;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--brand);
+}
+
+/* The expanded graph sits flush inside the entry. */
+.entry-detail {
+  padding: 0.3rem 0.6rem 0.6rem;
+  border-top: 1px solid color-mix(in srgb, CanvasText 8%, Canvas);
+}

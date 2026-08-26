@@ -37,8 +37,8 @@ function readAppConfig(): { name: string } {
 }
 
 // The PWA manifest is generated from app.config.json so the installed app's name
-// tracks the rest of the config. Icons point at the stock favicon — a fork should
-// add real 192/512 PNG icons here for a polished install.
+// tracks the rest of the config. Icons are the 192/512 PNGs in public/ (see
+// public/icon-*.png) for a polished home-screen install.
 function buildManifest(): string {
   const { name } = readAppConfig()
   return JSON.stringify(
@@ -51,7 +51,8 @@ function buildManifest(): string {
       background_color: '#ffffff',
       theme_color: THEME_COLOR,
       icons: [
-        { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+        { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
       ],
     },
     null,
@@ -98,7 +99,7 @@ export default defineConfig({
           tags: [
             { tag: 'link', attrs: { rel: 'manifest', href: MANIFEST_PATH }, injectTo: 'head' },
             { tag: 'meta', attrs: { name: 'theme-color', content: THEME_COLOR }, injectTo: 'head' },
-            { tag: 'link', attrs: { rel: 'apple-touch-icon', href: '/favicon.svg' }, injectTo: 'head' },
+            { tag: 'link', attrs: { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' }, injectTo: 'head' },
             { tag: 'meta', attrs: { name: 'apple-mobile-web-app-capable', content: 'yes' }, injectTo: 'head' },
             { tag: 'meta', attrs: { name: 'apple-mobile-web-app-title', content: name }, injectTo: 'head' },
           ],

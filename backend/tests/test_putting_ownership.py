@@ -145,8 +145,29 @@ class PuttingOwnershipTest(unittest.TestCase):
             users = client.get("/users").json()["users"]
             self.assertEqual(users, [{"sub": "sub-alice", "name": "Alice A", "picture": None}])
 
-            # The owner-scoped reads resolve the owner email to that name.
-            self.assertEqual(client.get("/batches").json()["owner_name"], "Alice A")
+            # The owner-scoped reads resolve the owner email to a public identity.
+            body = client.get("/batches").json()
+            self.assertEqual(body["owner_name"], "Alice A")
+            self.assertEqual(body["owner_sub"], "sub-alice")
+
+    def test_history_can_read_any_user_by_sub_without_leaking_email(self):
+        with TestClient(self._app) as client:
+            self._login_as(client, ALICE)
+            self.assertEqual(self._record_identity(client, "sub-alice", "Alice A").status_code, 200)
+            self.assertEqual(self._record_free(client, "b1", "e1").status_code, 200)
+
+            # Bob (a different admin) browses Alice's history by her public sub.
+            self._login_as(client, BOB)
+            body = client.get("/batches", params={"sub": "sub-alice"}).json()
+            self.assertEqual([b["batch_id"] for b in body["batches"]], ["b1"])
+            self.assertEqual(body["owner_sub"], "sub-alice")
+            self.assertEqual(body["owner_name"], "Alice A")
+            self.assertNotIn("owner", body)
+            self.assertNotIn(ALICE, json.dumps(body))
+
+            # An unknown sub is a 404, not a fallback to the caller's own data.
+            self.assertEqual(client.get("/batches", params={"sub": "nope"}).status_code, 404)
+            self.assertEqual(client.get("/tests", params={"sub": "nope"}).status_code, 404)
 
     def _record_identity(self, client, sub, name):
         return client.post(
@@ -209,6 +230,77 @@ class PuttingOwnershipTest(unittest.TestCase):
             g12 = next(g for g in body["global"] if g["distance"] == 12)
             self.assertEqual(g12["pct"], 50.0)
             self.assertEqual(g12["users"], 2)
+
+    def _record_test(self, client, test_id, batch_id, test_date, distance, made):
+        return client.post(
+            "/commands",
+            json={
+                "events": [
+                    {
+                        "event_id": f"ts-{test_id}",
+                        "type": "TestStarted",
+                        "aggregate_id": test_id,
+                        "data": {"test_date": test_date},
+                        "created_at": f"{test_date}T09:00:00Z",
+                    },
+                    {
+                        "event_id": batch_id,
+                        "type": "BatchRecorded",
+                        "aggregate_id": batch_id,
+                        "data": {
+                            "kind": "test",
+                            "test_id": test_id,
+                            "distance": distance,
+                            "batch_size": 5,
+                            "made": made,
+                        },
+                        "created_at": f"{test_date}T09:00:00Z",
+                    },
+                ]
+            },
+        )
+
+    def test_leaderboard_ranks_by_overall_and_filters_by_date(self):
+        with TestClient(self._app) as client:
+            # Alice: a strong test today. Bob: a weaker test a month ago.
+            self._login_as(client, ALICE)
+            self.assertEqual(self._record_identity(client, "sub-alice", "Alice A").status_code, 200)
+            self.assertEqual(self._record_test(client, "t-a", "b-a", "2026-08-26", 12, 5).status_code, 200)
+            self._login_as(client, BOB)
+            self.assertEqual(self._record_identity(client, "sub-bob", "Bob B").status_code, 200)
+            self.assertEqual(self._record_test(client, "t-b", "b-b", "2026-07-26", 12, 2).status_code, 200)
+
+            # All-time: both players, best overall % first (Alice 100 > Bob 40).
+            body = client.get("/leaderboard").json()
+            self.assertNotIn("email", json.dumps(body))
+            self.assertEqual([u["sub"] for u in body["users"]], ["sub-alice", "sub-bob"])
+            self.assertEqual(body["users"][0]["overall_pct"], 100.0)
+            self.assertEqual(body["users"][0]["attempts"], 5)
+            self.assertEqual(body["users"][0]["stats"][0]["distance"], 12)
+
+            # Windowed to today: only Alice's test falls inside.
+            today = client.get("/leaderboard", params={"start": "2026-08-26", "end": "2026-08-26"}).json()
+            self.assertEqual([u["sub"] for u in today["users"]], ["sub-alice"])
+
+    def test_daily_payload_is_bounded_and_baseline_excludes_today(self):
+        with TestClient(self._app) as client:
+            self._login_as(client, ALICE)
+            # Yesterday's test (the baseline) and today's in-progress test.
+            self.assertEqual(self._record_test(client, "t-old", "b-old", "2026-08-25", 12, 4).status_code, 200)
+            self.assertEqual(self._record_test(client, "t-new", "b-new", "2026-08-26", 12, 5).status_code, 200)
+
+            body = client.get("/daily", params={"day": "2026-08-26"}).json()
+            # Today's test and only today's batches.
+            self.assertEqual(body["test"], {"test_id": "t-new", "test_date": "2026-08-26"})
+            self.assertEqual([b["batch_id"] for b in body["today_batches"]], ["b-new"])
+            # Baseline is yesterday only (4/5 at 12 ft), never today's putt.
+            self.assertEqual(body["baseline"], [{"distance": 12, "made": 4, "attempts": 5, "pct": 80.0}])
+
+            # A day with no test: no test, no batches, but the baseline still stands.
+            empty = client.get("/daily", params={"day": "2026-08-27"}).json()
+            self.assertIsNone(empty["test"])
+            self.assertEqual(empty["today_batches"], [])
+            self.assertEqual(len(empty["baseline"]), 1)
 
     def test_daily_test_start_and_first_putt_commit_together(self):
         with TestClient(self._app) as client:

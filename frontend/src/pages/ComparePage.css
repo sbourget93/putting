@@ -1,0 +1,38 @@
+.compare-pickers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.compare-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1.4rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.compare-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+}
+
+.legend-name {
+  font-weight: 600;
+}
+
+.legend-pct {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: color-mix(in srgb, CanvasText 60%, Canvas);
+}
+
+.compare-empty {
+  margin: 0.8rem 0 0;
+  text-align: center;
+  font-size: 0.9rem;
+}

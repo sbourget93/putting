@@ -1,0 +1,63 @@
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  z-index: 50;
+}
+
+.modal {
+  width: 100%;
+  max-width: 30rem;
+  background: Canvas;
+  color: CanvasText;
+  border-radius: 1rem;
+  padding: 1.2rem;
+  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.3);
+}
+
+.modal-title {
+  margin: 0 0 1rem;
+  font-size: 1.2rem;
+}
+
+/* Same 0–5 buttons as the daily prompt. */
+.putt-edit-buttons {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.5rem;
+}
+
+.putt-edit-buttons .made-btn {
+  min-height: 56px;
+  border: 1px solid color-mix(in srgb, CanvasText 25%, Canvas);
+  border-radius: 0.7rem;
+  background: Canvas;
+  color: CanvasText;
+  font: inherit;
+  font-size: 1.4rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* The batch's current value, highlighted so the correction is obvious. */
+.putt-edit-buttons .made-btn.current {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 16%, Canvas);
+  color: var(--brand);
+}
+
+.putt-edit-buttons .made-btn:active {
+  background: var(--brand);
+  color: var(--brand-text);
+}
+
+@media (min-width: 30rem) {
+  .modal-backdrop {
+    align-items: center;
+  }
+}

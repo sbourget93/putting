@@ -161,6 +161,21 @@ export interface DistanceStat {
   pct: number // 0–100
 }
 
+/**
+ * Overall make percentage (0–100) pooled across by-distance stats, or null when
+ * there are no attempts. The aggregate-side twin of overallPct, for the baseline
+ * the server returns pre-summarized by distance.
+ */
+export function overallPctFromStats(stats: { made: number; attempts: number }[]): number | null {
+  let made = 0
+  let attempts = 0
+  for (const s of stats) {
+    made += s.made
+    attempts += s.attempts
+  }
+  return attempts ? (100 * made) / attempts : null
+}
+
 /** One user's make-%-by-distance, as GET /stats returns it (see backend main.get_stats).
  *  Keyed by the stable Google `sub`; never carries an email. */
 export interface UserStats {

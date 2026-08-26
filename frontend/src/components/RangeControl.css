@@ -1,0 +1,50 @@
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Segmented range control: three radio pills sharing one track. */
+.range-control {
+  display: flex;
+  gap: 0.3rem;
+  margin: 0 0 1rem;
+  padding: 0.25rem;
+  border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, CanvasText 3%, Canvas);
+}
+
+.range-option {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  color: color-mix(in srgb, CanvasText 65%, Canvas);
+  cursor: pointer;
+}
+
+.range-option.active {
+  background: var(--brand);
+  color: var(--brand-text);
+}
+
+/* The radio itself is invisible; the label pill is the control. */
+.range-option input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}

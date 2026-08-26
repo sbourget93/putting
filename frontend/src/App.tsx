@@ -2,7 +2,8 @@ import { Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import DailyTestPage from './pages/DailyTestPage'
 import HistoryPage from './pages/HistoryPage'
-import StatsPage from './pages/StatsPage'
+import LeaderboardPage from './pages/LeaderboardPage'
+import ComparePage from './pages/ComparePage'
 import TemplateTestPage from './pages/TemplateTestPage'
 import { IS_TEMPLATE } from './config'
 
@@ -14,7 +15,8 @@ function App() {
       <Route element={<Layout />}>
         <Route index element={<DailyTestPage />} />
         <Route path="history" element={<HistoryPage />} />
-        <Route path="stats" element={<StatsPage />} />
+        <Route path="leaderboard" element={<LeaderboardPage />} />
+        <Route path="compare" element={<ComparePage />} />
         {IS_TEMPLATE && (
           <Route path="template-test" element={<TemplateTestPage />} />
         )}

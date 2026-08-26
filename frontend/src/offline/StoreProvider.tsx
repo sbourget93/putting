@@ -18,12 +18,17 @@ import { useSync } from './SyncContext'
 import { newEvent } from './commands'
 import { batchesDescriptor } from './aggregates/batches'
 import { testsDescriptor } from './aggregates/tests'
+import { baselineDescriptor } from './aggregates/baseline'
 import { usersDescriptor, useUsers } from './aggregates/users'
 import type { AggregateDescriptor } from './types'
 
+// Scoped to what Daily Putts needs offline: today's test + batches (foldable
+// writes) and the all-time by-distance baseline. History / Leaderboard / Compare
+// read the server directly, on demand — they are not cached on the device.
 const AGGREGATES: AggregateDescriptor<any>[] = [
   testsDescriptor,
   batchesDescriptor,
+  baselineDescriptor,
   usersDescriptor,
 ]
 

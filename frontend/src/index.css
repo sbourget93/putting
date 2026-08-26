@@ -5,10 +5,35 @@
   --brand: rgb(2 115 201);
   --brand-text: #fff;
 
+  /* Categorical series palette — the data-viz validated 8-hue set (see
+     lib/seriesColors). Light values here; dark steps under prefers-color-scheme,
+     matching how the rest of the app follows the OS theme via CSS system colors. */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+
   font: 16px/1.5 var(--sans);
   color-scheme: light dark;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-8: #e66767;
+  }
 }
 
 *,

@@ -37,7 +37,9 @@ function TopBar() {
               <path d="M4 7h16M4 12h16M4 17h16" />
             </svg>
           </button>
-          <span className="app-name">{APP_NAME}</span>
+          <NavLink to="/" end className="app-name" onClick={closeMenu}>
+            {APP_NAME}
+          </NavLink>
           {/* Global sync envelope, admin-only (self-hidden for non-admins too). */}
           {isAdmin && <SyncMenu />}
         </div>
@@ -60,8 +62,11 @@ function TopBar() {
           <NavLink to="/history" className="menu-item" onClick={closeMenu}>
             History
           </NavLink>
-          <NavLink to="/stats" className="menu-item" onClick={closeMenu}>
-            Statistics
+          <NavLink to="/leaderboard" className="menu-item" onClick={closeMenu}>
+            Leaderboard
+          </NavLink>
+          <NavLink to="/compare" className="menu-item" onClick={closeMenu}>
+            Compare
           </NavLink>
           {/* Template-only, and absent from a fork's build entirely. */}
           {IS_TEMPLATE && (

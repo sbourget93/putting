@@ -1,60 +1,130 @@
 /**
- * History — every batch, newest first, free and test alike.
+ * History — one entry per daily test, newest first.
  *
- * Each entry is a single compact row: a kind badge (Test / Free), when it was
- * recorded, and the result. Admins tap a row to edit or delete it (BatchEdited /
- * BatchDeleted, through the sync engine); non-admins see the demo owner's history
- * read-only.
+ * Each entry is a row: the test's date and that day's overall make percentage.
+ * Tapping a row expands it to the same make-%-by-distance graph the completed
+ * daily-putts summary shows — that day's line against the player's all-time line.
+ *
+ * A picker at the top chooses whose history to view, defaulting to the viewer's
+ * own (or the demo owner's). All of it is fetched online on demand (see
+ * useUserHistory) — History is not cached on the device, only Daily Putts is.
+ * Editing was removed for now.
+ *
+ * Legacy free batches (no test) are grouped by their calendar day into their own
+ * entries so nothing is hidden, even though free putting is no longer recorded.
  */
-import { useMemo, useState } from 'react'
-import { useSync } from '../offline/SyncContext'
-import { newEvent } from '../offline/commands'
-import { usePuttingData } from '../lib/usePuttingData'
-import BatchEditModal, { type BatchFields } from '../components/BatchEditModal'
-import type { Batch } from '../lib/putting'
+import { useMemo, useRef, useState } from 'react'
+import { useUserHistory, useUsers } from '../lib/useUserHistory'
+import StatsChartPanel from '../components/StatsChartPanel'
+import PercentTrendChart from '../components/PercentTrendChart'
+import { localDay, overallPct, type Batch, type Test } from '../lib/putting'
 import './HistoryPage.css'
 
-function pct(made: number, size: number): number {
-  return size ? Math.round((100 * made) / size) : 0
+/** Format a YYYY-MM-DD calendar day as a local, human-readable date. */
+function formatDay(day: string): string {
+  const [y, m, d] = day.split('-').map(Number)
+  const date = new Date(y, (m ?? 1) - 1, d ?? 1)
+  if (Number.isNaN(date.getTime())) return day
+  return date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
 }
 
-function formatWhen(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return (
-    d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) +
-    ', ' +
-    d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-  )
+/** One collapsible entry: a day (test or legacy free) and the batches under it. */
+interface DayEntry {
+  key: string
+  day: string
+  isTest: boolean
+  batches: Batch[]
+}
+
+/**
+ * Group batches into one entry per test, newest first. Test batches attach to
+ * their test; legacy free batches (no test) are bucketed by their calendar day.
+ */
+function buildEntries(tests: Test[], batches: Batch[]): DayEntry[] {
+  const byTest = new Map<string, Batch[]>()
+  const freeByDay = new Map<string, Batch[]>()
+
+  for (const b of batches) {
+    if (b.kind === 'test' && b.test_id) {
+      const list = byTest.get(b.test_id) ?? []
+      list.push(b)
+      byTest.set(b.test_id, list)
+    } else {
+      const day = localDay(new Date(b.created_at))
+      const list = freeByDay.get(day) ?? []
+      list.push(b)
+      freeByDay.set(day, list)
+    }
+  }
+
+  const entries: DayEntry[] = []
+  for (const t of tests) {
+    const testBatches = byTest.get(t.test_id) ?? []
+    if (testBatches.length === 0) continue
+    entries.push({ key: t.test_id, day: t.test_date, isTest: true, batches: testBatches })
+  }
+  for (const [day, list] of freeByDay) {
+    entries.push({ key: `free-${day}`, day, isTest: false, batches: list })
+  }
+
+  return entries.sort((a, b) => b.day.localeCompare(a.day))
 }
 
 function HistoryPage() {
-  const { enqueue } = useSync()
-  const { batches, readOnly, loading, error } = usePuttingData()
-  const [editing, setEditing] = useState<Batch | null>(null)
+  const { users } = useUsers()
+  const [selectedSub, setSelectedSub] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [search, setSearch] = useState('')
+  const [searchFocused, setSearchFocused] = useState(false)
+  const searchInput = useRef<HTMLInputElement>(null)
 
-  const ordered = useMemo(
-    () => [...batches].sort((a, b) => b.created_at.localeCompare(a.created_at)),
-    [batches],
+  // Whose history is on screen, fetched online on demand: the picker's choice, or
+  // the default owner (your own if admin, else the demo owner) when none is picked.
+  const { tests, batches, ownerSub, ownerName, loading, error } = useUserHistory(selectedSub)
+  const viewingSub = selectedSub ?? ownerSub
+
+  const entries = useMemo(() => buildEntries(tests, batches), [tests, batches])
+  // The player's all-time test line, the baseline each day's graph compares to.
+  const allTestBatches = useMemo(() => batches.filter((b) => b.kind === 'test'), [batches])
+
+  // Each daily test's overall %, oldest to newest, for the trend graph. Test days
+  // only — the trend is bounded by the player's first and last daily putts.
+  const trend = useMemo(
+    () =>
+      entries
+        .filter((e) => e.isTest)
+        .map((e) => ({ day: e.day, pct: Math.round(overallPct(e.batches) ?? 0) }))
+        .reverse(),
+    [entries],
   )
 
-  function handleSave(batch: Batch, fields: BatchFields) {
-    enqueue([
-      newEvent('BatchEdited', batch.batch_id, {
-        distance: fields.distance,
-        batch_size: fields.batch_size,
-        made: fields.made,
-      }),
-    ])
+  function toggle(key: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
   }
 
-  function handleDelete(batch: Batch) {
-    if (!window.confirm(`Delete this ${batch.made}/${batch.batch_size} from ${batch.distance} ft?`)) return
-    enqueue([newEvent('BatchDeleted', batch.batch_id)])
-    setEditing(null)
-  }
+  const sortedUsers = useMemo(
+    () => [...users].sort((a, b) => a.name.localeCompare(b.name)),
+    [users],
+  )
 
-  if (loading) return <section className="page"><p className="muted">Loading…</p></section>
+  // Combobox: the input shows the player on screen until focused, then becomes a
+  // name search. Suggestions are all players, filtered by the typed query.
+  const viewingName =
+    sortedUsers.find((u) => u.sub === viewingSub)?.name ?? ownerName ?? ''
+  const q = search.trim().toLowerCase()
+  const suggestions = q
+    ? sortedUsers.filter((u) => u.name.toLowerCase().includes(q))
+    : sortedUsers
 
   return (
     <section className="page history">
@@ -62,54 +132,111 @@ function HistoryPage() {
         <h1>History</h1>
       </div>
 
+      {sortedUsers.length > 0 && (
+        <div className="history-picker">
+          <span className="history-picker-label">Viewing</span>
+          <div className="history-search">
+            <input
+              ref={searchInput}
+              type="text"
+              className="history-search-input"
+              value={searchFocused ? search : viewingName}
+              placeholder="Search players…"
+              onChange={(e) => setSearch(e.target.value)}
+              onFocus={() => {
+                setSearchFocused(true)
+                setSearch('')
+              }}
+              onBlur={() => setSearchFocused(false)}
+              aria-label="Search players to view"
+            />
+            {searchFocused && suggestions.length > 0 && (
+              <ul className="history-search-results">
+                {suggestions.map((u) => (
+                  <li key={u.sub}>
+                    {/* onMouseDown (not onClick) so the pick lands before the
+                        input blurs and closes the list. */}
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        // preventDefault keeps the click from blurring mid-pick;
+                        // we then blur explicitly so the field is released and a
+                        // later click reopens the search cleanly.
+                        e.preventDefault()
+                        setSelectedSub(u.sub)
+                        setSearch('')
+                        setSearchFocused(false)
+                        searchInput.current?.blur()
+                      }}
+                    >
+                      {u.picture && (
+                        <img className="result-avatar" src={u.picture} alt="" referrerPolicy="no-referrer" />
+                      )}
+                      <span className="result-name">{u.name}</span>
+                      {u.sub === viewingSub && <span className="result-current" aria-hidden="true">✓</span>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {searchFocused && q.length > 0 && suggestions.length === 0 && (
+              <p className="muted history-search-none">No matching players.</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {error && <p className="error" role="alert">{error}</p>}
 
-      {ordered.length === 0 ? (
+      {loading ? (
+        <p className="muted">Loading…</p>
+      ) : entries.length === 0 ? (
         <div className="panel"><p className="muted">No putts recorded yet.</p></div>
       ) : (
+        <>
+        {trend.length > 0 && (
+          <div className="panel chart-panel history-trend">
+            <h2 className="section-title">C1X putting percentage</h2>
+            <PercentTrendChart points={trend} />
+          </div>
+        )}
         <ul className="history-list">
-          {ordered.map((b) => {
-            const isTest = b.kind === 'test'
+          {entries.map((entry) => {
+            const isOpen = expanded.has(entry.key)
+            const dayPct = Math.round(overallPct(entry.batches) ?? 0)
+            // All-time minus this day, so the grey line is a real comparison and
+            // not the same putts drawn twice.
+            const baseline = allTestBatches.filter((b) => b.test_id !== entry.key)
             return (
-              <li
-                key={b.batch_id}
-                className="history-row"
-                onClick={readOnly ? undefined : () => setEditing(b)}
-                role={readOnly ? undefined : 'button'}
-                tabIndex={readOnly ? undefined : 0}
-                onKeyDown={
-                  readOnly
-                    ? undefined
-                    : (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          setEditing(b)
-                        }
-                      }
-                }
-              >
-                <span className={isTest ? 'kind-badge test' : 'kind-badge free'}>
-                  {isTest ? 'Test' : 'Free'}
-                </span>
-                <span className="row-when muted">{formatWhen(b.created_at)}</span>
-                <span className="row-stats">
-                  <span className="row-distance">{b.distance}′</span>
-                  <span className="row-made">{b.made}/{b.batch_size}</span>
-                  <span className="row-pct">{pct(b.made, b.batch_size)}%</span>
-                </span>
+              <li key={entry.key} className="history-entry">
+                <button
+                  type="button"
+                  className="test-row"
+                  aria-expanded={isOpen}
+                  onClick={() => toggle(entry.key)}
+                >
+                  <span className={`chevron${isOpen ? ' open' : ''}`} aria-hidden="true">›</span>
+                  <span className="test-date">{formatDay(entry.day)}</span>
+                  {!entry.isTest && <span className="kind-badge free">Free</span>}
+                  <span className="test-pct">{dayPct}%</span>
+                </button>
+
+                {isOpen && (
+                  <div className="entry-detail">
+                    <StatsChartPanel
+                      batches={entry.batches}
+                      baseline={baseline}
+                      emptyNote="No putts recorded."
+                      seriesLabel="This day"
+                      baselineLabel="All-time"
+                    />
+                  </div>
+                )}
               </li>
             )
           })}
         </ul>
-      )}
-
-      {editing && (
-        <BatchEditModal
-          batch={editing}
-          onClose={() => setEditing(null)}
-          onSave={(fields) => handleSave(editing, fields)}
-          onDelete={() => handleDelete(editing)}
-        />
+        </>
       )}
     </section>
   )

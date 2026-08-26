@@ -10,6 +10,7 @@ routes as `/commands`, `/foos`, etc.
 import json
 import os
 from contextlib import asynccontextmanager
+from datetime import date
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
@@ -203,16 +204,30 @@ def get_foos(request: Request):
     return {"version": version, "foos": foos}
 
 
-def _owner_name(conn, owner: str) -> str | None:
-    """Display name for an owner email, from the users projection, or None.
+def _owner_ident(conn, owner: str) -> tuple[str | None, str | None]:
+    """Public identity (sub, name) for an owner email, from the users projection.
 
     Email is the internal owner key, but another user's email must never reach the
-    client. So the owner-scoped query endpoints expose this resolved name instead
-    of the email when the viewer is looking at someone else's data."""
+    client. So the owner-scoped query endpoints expose this resolved sub and name
+    instead of the email when the viewer is looking at someone else's data. The sub
+    is already public (see /users, /stats); the email never leaves the server."""
     row = conn.execute(
-        "SELECT name FROM users WHERE email = ? AND deleted_at IS NULL", (owner,)
+        "SELECT sub, name FROM users WHERE email = ? AND deleted_at IS NULL", (owner,)
     ).fetchone()
-    return row["name"] if row else None
+    return (row["sub"], row["name"]) if row else (None, None)
+
+
+def _resolve_owner(conn, request: Request, sub: str | None) -> str | None:
+    """Whose rows a read returns. An explicit ?sub= names any user's data (public,
+    like /stats), resolved to that user's owner email; None when the sub is unknown.
+    Without a sub, falls back to the request default (your own if admin, else demo).
+    """
+    if sub:
+        row = conn.execute(
+            "SELECT email FROM users WHERE sub = ? AND deleted_at IS NULL", (sub,)
+        ).fetchone()
+        return row["email"] if row else None
+    return _read_owner(request)
 
 
 @app.get("/users")
@@ -233,45 +248,125 @@ def get_users():
 
 
 @app.get("/batches")
-def get_batches(request: Request):
+def get_batches(request: Request, sub: str | None = None):
     """Active putt batches for the resolved owner, plus the current version.
 
-    Owner-scoped (see _read_owner): an admin gets their own batches, everyone else
-    gets the demo owner's. The offline engine calls this as its `batches` snapshot;
-    non-admin pages read it online. Soft-deleted rows are omitted.
+    An explicit ?sub= names any user's data (public, like /stats), letting History
+    browse another player. Without it, owner-scoped (see _read_owner): an admin gets
+    their own batches, everyone else the demo owner's. The offline engine calls the
+    no-sub form as its `batches` snapshot. Soft-deleted rows are omitted.
 
-    Returns `owner_name` (a display name), never the owner email, so browsing
-    another user's data never leaks their email.
+    Returns `owner_sub` and `owner_name` (public identity), never the owner email,
+    so browsing another user's data never leaks their email.
     """
-    owner = _read_owner(request)
     with db.read() as conn:
+        owner = _resolve_owner(conn, request, sub)
+        if owner is None:
+            raise HTTPException(status_code=404, detail="Unknown user")
         rows = conn.execute(
             "SELECT batch_id, kind, test_id, distance, batch_size, made, created_at, updated_at "
             "FROM batches WHERE owner = ? AND deleted_at IS NULL ORDER BY created_at",
             (owner,),
         ).fetchall()
-        owner_name = _owner_name(conn, owner)
+        owner_sub, owner_name = _owner_ident(conn, owner)
         version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
-    return {"version": version, "owner_name": owner_name, "batches": [dict(r) for r in rows]}
+    return {
+        "version": version,
+        "owner_sub": owner_sub,
+        "owner_name": owner_name,
+        "batches": [dict(r) for r in rows],
+    }
 
 
 @app.get("/tests")
-def get_tests(request: Request):
+def get_tests(request: Request, sub: str | None = None):
     """Active daily tests for the resolved owner, plus the current version.
 
-    Owner-scoped like /batches. The client maps a test to its batches by test_id to
-    compute daily-test progress. Returns `owner_name`, never the owner email.
+    Owner-scoped like /batches, with the same optional ?sub= to browse another
+    user. The client maps a test to its batches by test_id to compute daily-test
+    progress. Returns `owner_sub`/`owner_name`, never the owner email.
     """
-    owner = _read_owner(request)
     with db.read() as conn:
+        owner = _resolve_owner(conn, request, sub)
+        if owner is None:
+            raise HTTPException(status_code=404, detail="Unknown user")
         rows = conn.execute(
             "SELECT test_id, test_date, created_at, updated_at "
             "FROM tests WHERE owner = ? AND deleted_at IS NULL ORDER BY test_date",
             (owner,),
         ).fetchall()
-        owner_name = _owner_name(conn, owner)
+        owner_sub, owner_name = _owner_ident(conn, owner)
         version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
-    return {"version": version, "owner_name": owner_name, "tests": [dict(r) for r in rows]}
+    return {
+        "version": version,
+        "owner_sub": owner_sub,
+        "owner_name": owner_name,
+        "tests": [dict(r) for r in rows],
+    }
+
+
+@app.get("/daily")
+def get_daily(request: Request, day: str | None = None):
+    """The compact payload the Daily Putts page needs, for one local day.
+
+    Owner-scoped like /tests (admin gets their own, everyone else the demo owner).
+    Deliberately small and bounded regardless of history size — this is fetched on
+    every visit and cached offline, so it must never grow with the batch log:
+
+      - `test`          — that day's daily test (test_id, test_date) or null.
+      - `today_batches` — the day's test batches (at most one per distance).
+      - `baseline`      — the player's all-time make-% by distance, EXCLUDING the
+                          day itself, so the chart's grey line and the summary
+                          compare the day against history, not against itself.
+
+    `day` is the client's local calendar day (YYYY-MM-DD); it falls back to the
+    server's date only if the client omits it.
+    """
+    owner = _read_owner(request)
+    today = day or date.today().isoformat()
+    with db.read() as conn:
+        test_row = conn.execute(
+            "SELECT test_id, test_date FROM tests "
+            "WHERE owner = ? AND test_date = ? AND deleted_at IS NULL",
+            (owner, today),
+        ).fetchone()
+        test = {"test_id": test_row["test_id"], "test_date": test_row["test_date"]} if test_row else None
+
+        today_batches: list[dict] = []
+        if test:
+            today_batches = [
+                dict(r)
+                for r in conn.execute(
+                    "SELECT batch_id, kind, test_id, distance, batch_size, made, created_at "
+                    "FROM batches "
+                    "WHERE owner = ? AND test_id = ? AND kind = 'test' AND deleted_at IS NULL "
+                    "ORDER BY created_at",
+                    (owner, test["test_id"]),
+                ).fetchall()
+            ]
+
+        # All-time test make-% by distance, minus the day's own test.
+        baseline_rows = conn.execute(
+            "SELECT b.distance AS distance, SUM(b.made) AS made, SUM(b.batch_size) AS attempts "
+            "FROM batches b JOIN tests t ON t.test_id = b.test_id AND t.owner = b.owner "
+            "WHERE b.owner = ? AND b.kind = 'test' AND b.deleted_at IS NULL "
+            "AND t.deleted_at IS NULL AND t.test_date != ? "
+            "GROUP BY b.distance ORDER BY b.distance",
+            (owner, today),
+        ).fetchall()
+        baseline = [
+            {
+                "distance": r["distance"],
+                "made": r["made"],
+                "attempts": r["attempts"],
+                "pct": (100 * r["made"] / r["attempts"]) if r["attempts"] else 0,
+            }
+            for r in baseline_rows
+        ]
+
+        version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
+
+    return {"version": version, "test": test, "today_batches": today_batches, "baseline": baseline}
 
 
 def global_average(users: list[dict]) -> list[dict]:
@@ -332,3 +427,74 @@ def get_stats():
 
     users_list = list(users.values())
     return {"version": version, "users": users_list, "global": global_average(users_list)}
+
+
+@app.get("/leaderboard")
+def get_leaderboard(start: str | None = None, end: str | None = None):
+    """Players ranked by overall daily-test make %, over an optional date window.
+
+    Public and email-free, like /stats. Test batches only (free putting is legacy),
+    joined to their test so the window filters on the local test_date. `start`/`end`
+    are inclusive YYYY-MM-DD bounds; omit both for all-time. Each entry also carries
+    its make-%-by-distance breakdown so the client can draw that player's line for
+    the chosen range without a second request. Only players with attempts in the
+    window appear, best overall % first.
+    """
+    clauses = [
+        "b.kind = 'test'",
+        "b.deleted_at IS NULL",
+        "t.deleted_at IS NULL",
+        "u.deleted_at IS NULL",
+    ]
+    params: list = []
+    if start:
+        clauses.append("t.test_date >= ?")
+        params.append(start)
+    if end:
+        clauses.append("t.test_date <= ?")
+        params.append(end)
+    where = " AND ".join(clauses)
+
+    with db.read() as conn:
+        rows = conn.execute(
+            "SELECT u.sub AS sub, u.name AS name, u.picture AS picture, "
+            "b.distance AS distance, SUM(b.made) AS made, SUM(b.batch_size) AS attempts "
+            "FROM batches b "
+            "JOIN tests t ON t.test_id = b.test_id AND t.owner = b.owner "
+            "JOIN users u ON u.email = b.owner "
+            f"WHERE {where} "
+            "GROUP BY u.sub, b.distance "
+            "ORDER BY u.name, b.distance",
+            params,
+        ).fetchall()
+        version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
+
+    users: dict[str, dict] = {}
+    totals: dict[str, list[int]] = {}  # sub -> [made, attempts]
+    for r in rows:
+        user = users.get(r["sub"])
+        if user is None:
+            user = {"sub": r["sub"], "name": r["name"], "picture": r["picture"], "stats": []}
+            users[r["sub"]] = user
+            totals[r["sub"]] = [0, 0]
+        made, attempts = r["made"], r["attempts"]
+        user["stats"].append(
+            {
+                "distance": r["distance"],
+                "made": made,
+                "attempts": attempts,
+                "pct": (100 * made / attempts) if attempts else 0,
+            }
+        )
+        totals[r["sub"]][0] += made
+        totals[r["sub"]][1] += attempts
+
+    entries = []
+    for sub, user in users.items():
+        made, attempts = totals[sub]
+        entries.append({**user, "attempts": attempts, "overall_pct": (100 * made / attempts) if attempts else 0})
+    # Best overall % first; a stable secondary sort by name keeps ties deterministic.
+    entries.sort(key=lambda e: e["name"])
+    entries.sort(key=lambda e: e["overall_pct"], reverse=True)
+
+    return {"version": version, "users": entries}

@@ -89,40 +89,67 @@
   background: color-mix(in srgb, #ef4444 12%, Canvas);
 }
 
-.results-grid {
-  list-style: none;
-  margin: 0.9rem 0 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(3.2rem, 1fr));
-  gap: 0.4rem;
+.today-batches {
+  padding-top: 0.9rem;
+  padding-bottom: 0.6rem;
 }
 
-.results-grid .result {
+.batch-lines {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
+}
+
+.batch-line {
+  display: flex;
   align-items: center;
-  padding: 0.35rem 0;
-  border-radius: 0.5rem;
+  gap: 0.8rem;
+  padding: 0.1rem 0;
+  border-top: 1px solid color-mix(in srgb, CanvasText 8%, Canvas);
   font-variant-numeric: tabular-nums;
 }
 
-.result.done {
-  background: color-mix(in srgb, var(--brand) 16%, Canvas);
+.batch-line:first-child {
+  border-top: 0;
 }
 
-.result.pending {
-  background: color-mix(in srgb, CanvasText 7%, Canvas);
-  color: color-mix(in srgb, CanvasText 45%, Canvas);
-}
-
-.result-dist {
-  font-size: 0.85rem;
+.batch-line-dist {
+  flex: 0 0 auto;
+  min-width: 3rem;
   font-weight: 600;
 }
 
-.result-made {
-  font-size: 0.8rem;
+.batch-line-made {
+  flex: 1 1 auto;
+  color: color-mix(in srgb, CanvasText 60%, Canvas);
+}
+
+/* Pencil: kept a wide 44px tap target, but shorter so the rows stay compact. */
+.batch-edit-btn {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 34px;
+  margin: -0.1rem 0;
+  border: 0;
+  border-radius: 0.5rem;
+  background: none;
+  color: var(--brand);
+  cursor: pointer;
+}
+
+.batch-edit-btn:active {
+  background: color-mix(in srgb, CanvasText 8%, Canvas);
+}
+
+.batch-edit-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
 }
 
 @media (prefers-reduced-motion: reduce) {

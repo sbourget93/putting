@@ -9,6 +9,12 @@
   stroke-width: 1;
 }
 
+/* The 5-ft vertical guides sit lighter than the horizontal grid — a hint, not a
+   ruler. */
+.putting-chart .grid-v {
+  stroke: color-mix(in srgb, CanvasText 8%, Canvas);
+}
+
 .putting-chart .axis-label {
   fill: color-mix(in srgb, CanvasText 55%, Canvas);
   font-size: 10px;
@@ -25,6 +31,10 @@
   fill: none;
   stroke-linejoin: round;
   stroke-linecap: round;
+}
+
+.chart-panel {
+  padding-top: 0.6rem;
 }
 
 .chart-legend {

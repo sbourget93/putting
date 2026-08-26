@@ -28,7 +28,7 @@ const H = 240
 const PAD = { top: 12, right: 14, bottom: 30, left: 34 }
 const PLOT_W = W - PAD.left - PAD.right
 const PLOT_H = H - PAD.top - PAD.bottom
-const Y_TICKS = [0, 25, 50, 75, 100]
+const Y_TICKS = [0, 20, 40, 60, 80, 100]
 
 // Draw dashed (background) series first, plain next, emphasized last (on top).
 function depth(s: SeriesSpec): number {
@@ -55,6 +55,13 @@ export default function PuttingChart({ series }: { series: SeriesSpec[] }) {
   )
   const labelStep = Math.max(1, Math.ceil(axisStats.length / 8))
 
+  // Subtle vertical guides at every 5 ft from 15 up, so the eye can read a
+  // distance off the line without counting ticks.
+  const fiveFtMarks: number[] = []
+  for (let d = 15; d <= maxD; d += 5) {
+    if (d >= minD) fiveFtMarks.push(d)
+  }
+
   const ordered = [...drawn].sort((a, b) => depth(a) - depth(b))
 
   const summary = allDistances.length
@@ -77,6 +84,11 @@ export default function PuttingChart({ series }: { series: SeriesSpec[] }) {
             {t}
           </text>
         </g>
+      ))}
+
+      {/* Faint 5-ft vertical guides */}
+      {fiveFtMarks.map((d) => (
+        <line key={`v${d}`} className="grid grid-v" x1={x(d)} y1={y(100)} x2={x(d)} y2={y(0)} />
       ))}
 
       {/* X labels (thinned so they don't collide) */}

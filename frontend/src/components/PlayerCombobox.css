@@ -1,0 +1,104 @@
+.player-combobox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.player-combobox-label {
+  flex: 0 0 auto;
+  min-width: 4.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: color-mix(in srgb, CanvasText 60%, Canvas);
+}
+
+.player-combobox-field {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.player-combobox-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 2.2rem 0 0.9rem; /* room for the clear button */
+  border: 1px solid color-mix(in srgb, CanvasText 25%, Canvas);
+  border-radius: 0.6rem;
+  background: Canvas;
+  color: CanvasText;
+  font: inherit;
+}
+
+.player-combobox-clear {
+  position: absolute;
+  top: 50%;
+  right: 0.4rem;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, CanvasText 10%, Canvas);
+  color: CanvasText;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.player-combobox-results {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  margin: 0.3rem 0 0;
+  padding: 0.25rem;
+  list-style: none;
+  border: 1px solid color-mix(in srgb, CanvasText 18%, Canvas);
+  border-radius: 0.6rem;
+  background: Canvas;
+  box-shadow: 0 6px 20px color-mix(in srgb, CanvasText 18%, transparent);
+  max-height: 15rem;
+  overflow-y: auto;
+}
+
+.player-combobox-results button {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 0.7rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: none;
+  color: CanvasText;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.player-combobox-results button:hover {
+  background: color-mix(in srgb, CanvasText 8%, Canvas);
+}
+
+.player-combobox-results .result-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.player-combobox-results .result-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-combobox-none {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+}
