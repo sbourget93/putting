@@ -17,7 +17,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useUserHistory, useUsers } from '../lib/useUserHistory'
 import StatsChartPanel from '../components/StatsChartPanel'
 import PercentTrendChart from '../components/PercentTrendChart'
-import { localDay, overallPct, type Batch, type Test } from '../lib/putting'
+import { localDay, overallPct, statsByDistance, type Batch, type Test } from '../lib/putting'
 import './HistoryPage.css'
 
 /** Format a YYYY-MM-DD calendar day as a local, human-readable date. */
@@ -89,8 +89,12 @@ function HistoryPage() {
   const viewingSub = selectedSub ?? ownerSub
 
   const entries = useMemo(() => buildEntries(tests, batches), [tests, batches])
-  // The player's all-time test line, the baseline each day's graph compares to.
-  const allTestBatches = useMemo(() => batches.filter((b) => b.kind === 'test'), [batches])
+  // The player's true all-time make-% by distance: the identical grey baseline
+  // every day's graph compares against.
+  const baselineStats = useMemo(
+    () => statsByDistance(batches.filter((b) => b.kind === 'test')),
+    [batches],
+  )
 
   // Each daily test's overall %, oldest to newest, for the trend graph. Test days
   // only — the trend is bounded by the player's first and last daily putts.
@@ -204,9 +208,6 @@ function HistoryPage() {
           {entries.map((entry) => {
             const isOpen = expanded.has(entry.key)
             const dayPct = Math.round(overallPct(entry.batches) ?? 0)
-            // All-time minus this day, so the grey line is a real comparison and
-            // not the same putts drawn twice.
-            const baseline = allTestBatches.filter((b) => b.test_id !== entry.key)
             return (
               <li key={entry.key} className="history-entry">
                 <button
@@ -225,7 +226,7 @@ function HistoryPage() {
                   <div className="entry-detail">
                     <StatsChartPanel
                       batches={entry.batches}
-                      baseline={baseline}
+                      baselineStats={baselineStats}
                       emptyNote="No putts recorded."
                       seriesLabel="This day"
                       baselineLabel="All-time"

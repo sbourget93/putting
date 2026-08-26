@@ -282,10 +282,10 @@ class PuttingOwnershipTest(unittest.TestCase):
             today = client.get("/leaderboard", params={"start": "2026-08-26", "end": "2026-08-26"}).json()
             self.assertEqual([u["sub"] for u in today["users"]], ["sub-alice"])
 
-    def test_daily_payload_is_bounded_and_baseline_excludes_today(self):
+    def test_daily_payload_is_bounded_and_baseline_is_all_time(self):
         with TestClient(self._app) as client:
             self._login_as(client, ALICE)
-            # Yesterday's test (the baseline) and today's in-progress test.
+            # Yesterday's test and today's in-progress test, same distance.
             self.assertEqual(self._record_test(client, "t-old", "b-old", "2026-08-25", 12, 4).status_code, 200)
             self.assertEqual(self._record_test(client, "t-new", "b-new", "2026-08-26", 12, 5).status_code, 200)
 
@@ -293,14 +293,14 @@ class PuttingOwnershipTest(unittest.TestCase):
             # Today's test and only today's batches.
             self.assertEqual(body["test"], {"test_id": "t-new", "test_date": "2026-08-26"})
             self.assertEqual([b["batch_id"] for b in body["today_batches"]], ["b-new"])
-            # Baseline is yesterday only (4/5 at 12 ft), never today's putt.
-            self.assertEqual(body["baseline"], [{"distance": 12, "made": 4, "attempts": 5, "pct": 80.0}])
+            # Baseline is the true all-time average: both days pooled (9/10 at 12 ft).
+            self.assertEqual(body["baseline"], [{"distance": 12, "made": 9, "attempts": 10, "pct": 90.0}])
 
-            # A day with no test: no test, no batches, but the baseline still stands.
+            # A day with no test: no test, no batches, but the all-time baseline stands.
             empty = client.get("/daily", params={"day": "2026-08-27"}).json()
             self.assertIsNone(empty["test"])
             self.assertEqual(empty["today_batches"], [])
-            self.assertEqual(len(empty["baseline"]), 1)
+            self.assertEqual(empty["baseline"], [{"distance": 12, "made": 9, "attempts": 10, "pct": 90.0}])
 
     def test_daily_test_start_and_first_putt_commit_together(self):
         with TestClient(self._app) as client:

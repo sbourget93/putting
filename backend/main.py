@@ -315,9 +315,9 @@ def get_daily(request: Request, day: str | None = None):
 
       - `test`          — that day's daily test (test_id, test_date) or null.
       - `today_batches` — the day's test batches (at most one per distance).
-      - `baseline`      — the player's all-time make-% by distance, EXCLUDING the
-                          day itself, so the chart's grey line and the summary
-                          compare the day against history, not against itself.
+      - `baseline`      — the player's true all-time make-% by distance (every test
+                          day, today included), the chart's grey comparison line and
+                          the summary's lifetime average.
 
     `day` is the client's local calendar day (YYYY-MM-DD); it falls back to the
     server's date only if the client omits it.
@@ -345,14 +345,14 @@ def get_daily(request: Request, day: str | None = None):
                 ).fetchall()
             ]
 
-        # All-time test make-% by distance, minus the day's own test.
+        # True all-time test make-% by distance — every test day, today included.
         baseline_rows = conn.execute(
             "SELECT b.distance AS distance, SUM(b.made) AS made, SUM(b.batch_size) AS attempts "
             "FROM batches b JOIN tests t ON t.test_id = b.test_id AND t.owner = b.owner "
             "WHERE b.owner = ? AND b.kind = 'test' AND b.deleted_at IS NULL "
-            "AND t.deleted_at IS NULL AND t.test_date != ? "
+            "AND t.deleted_at IS NULL "
             "GROUP BY b.distance ORDER BY b.distance",
-            (owner, today),
+            (owner,),
         ).fetchall()
         baseline = [
             {
