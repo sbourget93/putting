@@ -7,12 +7,12 @@
  * bounded no matter how much history exists. History / Leaderboard / Compare read
  * their own, heavier data on demand instead of through this hook.
  *
- * Two paths, matching the template's admin/non-admin split:
- *  - Admins run the offline sync engine, so today's test/batches come from the
- *    cached daily snapshot with pending writes folded on top, and the baseline
- *    from its cached aggregate. They can write, and they see their own data.
- *  - Everyone else reads the same compact payload online (GET /api/daily) and is
- *    read-only, seeing the demo owner's day.
+ * Two paths, matching the writer / read-only split:
+ *  - A signed-in writer runs the offline sync engine, so today's test/batches come
+ *    from the cached daily snapshot with pending writes folded on top, and the
+ *    baseline from its cached aggregate. They can write, and they see their own data.
+ *  - Everyone else (logged out, or the read-only `public` role) reads the same
+ *    compact payload online (GET /api/daily) and is read-only.
  */
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth-context'
@@ -29,32 +29,32 @@ export interface DailyData {
   todayBatches: Batch[]
   /** All-time make-% by distance, excluding today — the chart's baseline line. */
   baselineStats: DistanceStat[]
-  /** Non-admins view the demo owner's day and cannot record or edit. */
+  /** Read-only viewers (logged out or `public`) see a day they cannot record or edit. */
   readOnly: boolean
   loading: boolean
   error: string | null
 }
 
 export function usePuttingData(): DailyData {
-  const { isAdmin } = useAuth()
+  const { canWrite } = useAuth()
 
-  // Admin path: always subscribed, but only meaningful when isAdmin (a non-admin
+  // Writer path: always subscribed, but only meaningful when canWrite (a non-writer
   // engine is inert and returns empty).
-  const adminTests = useTests()
-  const adminBatches = useBatches()
-  const adminBaseline = useBaseline()
+  const engineTests = useTests()
+  const engineBatches = useBatches()
+  const engineBaseline = useBaseline()
 
-  // Non-admin path: the same compact payload, fetched online.
+  // Read-only path: the same compact payload, fetched online.
   const [online, setOnline] = useState<{ test: Test | null; todayBatches: Batch[]; baselineStats: DistanceStat[] }>({
     test: null,
     todayBatches: [],
     baselineStats: [],
   })
-  const [loading, setLoading] = useState(!isAdmin)
+  const [loading, setLoading] = useState(!canWrite)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (isAdmin) return
+    if (canWrite) return
     let cancelled = false
     setLoading(true)
     void (async () => {
@@ -77,13 +77,13 @@ export function usePuttingData(): DailyData {
     return () => {
       cancelled = true
     }
-  }, [isAdmin])
+  }, [canWrite])
 
-  if (isAdmin) {
+  if (canWrite) {
     return {
-      test: findTest(adminTests, localDay()) ?? null,
-      todayBatches: adminBatches,
-      baselineStats: adminBaseline,
+      test: findTest(engineTests, localDay()) ?? null,
+      todayBatches: engineBatches,
+      baselineStats: engineBaseline,
       readOnly: false,
       loading: false,
       error: null,

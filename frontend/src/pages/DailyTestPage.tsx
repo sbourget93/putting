@@ -9,7 +9,8 @@
  * (TestStarted) and records the putt (BatchRecorded) in one atomic command, so the
  * test always exists before a batch points at it.
  *
- * Non-admins see the demo owner's progress, read-only.
+ * A signed-in writer records their own day; logged-out or read-only visitors see
+ * a read-only day.
  */
 import { useMemo, useState } from 'react'
 import { useSync } from '../offline/SyncContext'
@@ -106,7 +107,7 @@ function DailyTestPage() {
         )}
       </div>
 
-      {readOnly && <p className="muted read-only-note">Viewing the demo. Sign in as an admin to record your own.</p>}
+      {readOnly && <p className="muted read-only-note">Viewing read-only. Sign in to record your own.</p>}
       {error && <p className="error" role="alert">{error}</p>}
 
       {complete && <CompleteSummary todayPct={overallPct(todays)} lifetimePct={lifetimePct} />}

@@ -1,11 +1,12 @@
 /**
  * StoreProvider — mounts the sync engine and registers the app's aggregates.
  *
- * The offline data layer is admin-only: only admins may read the full projection
- * data (private_value) and only admins may write. So the engine runs only when
- * the signed-in user is an admin (`enabled`); a non-admin gets an inert engine
- * that never fetches, syncs, or persists, and reads online instead (see
- * TemplateTestPage). Must sit inside AuthProvider, since it reads `isAdmin`.
+ * The offline data layer runs for any signed-in writer (`canWrite`: a role that is
+ * not the read-only `public`), since writes now require only being signed in, not
+ * admin. A logged-out or read-only visitor gets an inert engine that never fetches,
+ * syncs, or persists, and reads online instead (see usePuttingData). The engine
+ * syncs through the open per-aggregate query endpoints and writes via /commands;
+ * it never touches the admin-only /events log. Must sit inside AuthProvider.
  *
  * Register aggregates here, one descriptor per aggregate, mirroring the backend's
  * projection modules. The demo `foo` aggregate is intentionally not registered in
@@ -38,8 +39,8 @@ const AGGREGATES: AggregateDescriptor<any>[] = [
  * Enqueues a UserSignedIn (keyed by the stable Google `sub`) only when the
  * projection has no matching row yet, or the name/picture has changed — so it
  * fires once on first sign-in and again only when the Google profile actually
- * changes, never on every reload. Runs only for admins (the engine is inert
- * otherwise), which is the only who ever writes.
+ * changes, never on every reload. Runs for any writer (the engine is inert
+ * otherwise), so a user's identity is recorded the first time they sign in.
  */
 function RecordIdentity() {
   const { user } = useAuth()
@@ -60,9 +61,9 @@ function RecordIdentity() {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const { isAdmin } = useAuth()
+  const { canWrite } = useAuth()
   return (
-    <SyncProvider aggregates={AGGREGATES} enabled={isAdmin}>
+    <SyncProvider aggregates={AGGREGATES} enabled={canWrite}>
       <RecordIdentity />
       {children}
     </SyncProvider>

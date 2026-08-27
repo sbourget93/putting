@@ -16,11 +16,18 @@ export type User = {
   picture: string | null
 }
 
+/** Effective role reported by the backend (overlay-aware). 'public' when signed out. */
+export type Role = 'public' | 'user' | 'op' | 'admin'
+
 export type AuthState = {
   /** True once the initial `/auth/me` has resolved (success or failure). */
   ready: boolean
   user: User | null
   isAdmin: boolean
+  /** The backend's effective role for this session (see Role). */
+  role: Role
+  /** May submit writes: signed in with a write-capable role (anything but `public`). */
+  canWrite: boolean
   /** Google OAuth client id, or '' if the backend hasn't been configured. */
   googleClientId: string
   /** Exchange a Google ID token for a backend session. */

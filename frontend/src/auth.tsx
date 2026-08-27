@@ -13,7 +13,9 @@
  * hook, and types live in auth-context.ts.
  */
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { AuthContext, type User } from './auth-context'
+import { AuthContext, type Role, type User } from './auth-context'
+
+type MeResponse = { user: User | null; is_admin: boolean; role?: Role }
 
 // The Google client id comes from /api/auth/config, which is unreachable offline.
 // It's a stable, non-secret public value, so we cache it in localStorage: this
@@ -33,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [role, setRole] = useState<Role>('public')
   const [googleClientId, setGoogleClientId] = useState(rememberedClientId)
 
   useEffect(() => {
@@ -44,9 +47,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           fetch('/api/auth/config'),
         ])
         if (!cancelled && meRes.ok) {
-          const me = (await meRes.json()) as { user: User | null; is_admin: boolean }
+          const me = (await meRes.json()) as MeResponse
           setUser(me.user)
           setIsAdmin(Boolean(me.is_admin))
+          setRole(me.role ?? 'public')
         }
         if (!cancelled && cfgRes.ok) {
           const cfg = (await cfgRes.json()) as { google_client_id: string }
@@ -79,9 +83,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ credential }),
     })
     if (!res.ok) throw new Error(`Sign-in failed (${res.status})`)
-    const body = (await res.json()) as { user: User | null; is_admin: boolean }
+    const body = (await res.json()) as MeResponse
     setUser(body.user)
     setIsAdmin(Boolean(body.is_admin))
+    setRole(body.role ?? 'public')
   }, [])
 
   const signOut = useCallback(async () => {
@@ -91,14 +96,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Clear local state regardless; the cookie is gone (or will be re-fetched).
       setUser(null)
       setIsAdmin(false)
+      setRole('public')
       // Stop Google from silently re-selecting the same account on next sign-in.
       window.google?.accounts.id.disableAutoSelect()
     }
   }, [])
 
+  // A signed-in user may write unless downgraded to the read-only `public` role.
+  const canWrite = role !== 'public'
+
   return (
     <AuthContext.Provider
-      value={{ ready, user, isAdmin, googleClientId, signInWithCredential, signOut }}
+      value={{ ready, user, isAdmin, role, canWrite, googleClientId, signInWithCredential, signOut }}
     >
       {children}
     </AuthContext.Provider>
