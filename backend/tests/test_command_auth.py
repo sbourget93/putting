@@ -1,13 +1,14 @@
-"""Integration test: the command endpoint's admin gate.
+"""Integration test: the command endpoint's write gate.
 
-Where test_auth.py unit-tests the `is_admin` helper in isolation, this drives the
-real ASGI app with FastAPI's TestClient to prove `POST /commands` is actually
-wired to `require_admin`: an anonymous or non-admin caller gets 403 and writes
-nothing, while an admin's batch commits and projects. Delete the `dependencies=`
-line on the route and these tests fail — that's the point.
+Where test_auth.py unit-tests the auth helpers in isolation, this drives the real
+ASGI app with FastAPI's TestClient to prove `POST /commands` is actually wired to
+`require_writer`: an anonymous caller gets 403 and writes nothing, while any
+signed-in user's batch commits and projects. The raw `/events` log stays
+admin-only. Delete the `dependencies=` line on the route and these tests fail —
+that's the point.
 
 The only thing stubbed is Google token verification (we never call Google in a
-test); the rest of the auth path — session cookie -> require_admin -> is_admin ->
+test); the rest of the auth path — session cookie -> require_writer -> role ->
 allowlist — runs for real. S3 stays disabled (no S3_BUCKET) and the DB is a
 throwaway temp file, so nothing here touches app.db or AWS.
 
@@ -88,12 +89,18 @@ class CommandAuthTest(unittest.TestCase):
             self.assertEqual(res.status_code, 403)
             self.assertEqual(client.get("/foos").json()["version"], 0)
 
-    def test_non_admin_is_rejected_and_writes_nothing(self):
+    def test_signed_in_non_admin_can_write(self):
+        # The multi-user swap: being signed in — not being an admin — is what the
+        # write path requires now. A plain user's batch commits and projects.
         with TestClient(self._app) as client:
             self._login_as(client, "nobody@example.com")
             res = client.post("/commands", json={"events": [_foo_created_event()]})
-            self.assertEqual(res.status_code, 403)
-            self.assertEqual(client.get("/foos").json()["version"], 0)
+            self.assertEqual(res.status_code, 200)
+            self.assertEqual(res.json()["status"], "ok")
+            foos = client.get("/foos").json()["foos"]
+            self.assertEqual([f["public_value"] for f in foos], ["hello"])
+            # A non-admin still never sees the private field.
+            self.assertNotIn("private_value", foos[0])
 
     def test_events_log_requires_admin(self):
         # The raw event log carries fields /foos hides from non-admins (e.g.

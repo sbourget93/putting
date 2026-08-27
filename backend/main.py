@@ -9,6 +9,7 @@ routes as `/commands`, `/foos`, etc.
 
 import json
 import os
+import uuid
 from contextlib import asynccontextmanager
 from datetime import date
 
@@ -20,6 +21,7 @@ import auth
 import db
 import s3_sync
 from projections import KNOWN_EVENT_TYPES, apply_event
+from projections.users import ASSIGNABLE_ROLES
 
 
 @asynccontextmanager
@@ -46,22 +48,27 @@ app.add_middleware(
 
 app.include_router(auth.router)
 
-# Whose data an unauthenticated (or non-admin) visitor reads: the public demo
-# account. Only admins can write, so a non-admin never has data of their own to
-# show, and this is what makes the app browsable signed-out. Configurable so a
-# fork can point the demo at its own account.
+# Whose data a signed-out visitor reads: the public demo account. It is what makes
+# the app browsable while logged out, since a signed-out visitor has no data of
+# their own. Configurable so a fork can point the demo at its own account.
 DEMO_OWNER_EMAIL = os.environ.get("DEMO_OWNER_EMAIL", "sbourget93@gmail.com").lower()
+
+# Event types the self-service command path must never accept, even though they
+# have a registered projection handler (needed for replay). These are issued only
+# by their own privileged, server-side endpoints — e.g. UserRoleChanged comes from
+# the op-gated POST /users/{sub}/role — so a user cannot forge one through
+# POST /commands to, say, promote themselves.
+SERVER_ONLY_EVENT_TYPES = frozenset({"UserRoleChanged"})
 
 
 def _read_owner(request: Request) -> str:
-    """Whose rows a read returns: your own if you are an admin, else the demo owner.
+    """Whose rows a read returns: your own if signed in, else the demo owner.
 
-    Admins read and write their own data through the offline engine. Everyone else
-    (logged out, or signed in but not on the allowlist) can only read, and only
-    the demo owner's data.
+    Any signed-in user reads and writes their own data through the offline engine.
+    A signed-out visitor can only read, and only the demo owner's data.
     """
-    if auth.is_admin(request):
-        user = auth.current_user(request) or {}
+    user = auth.current_user(request)
+    if user is not None:
         return (user.get("email") or "").lower()
     return DEMO_OWNER_EMAIL
 
@@ -84,15 +91,18 @@ class CommandRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # Command endpoint (writes)
 # ---------------------------------------------------------------------------
-@app.post("/commands", dependencies=[Depends(auth.require_admin)])
+@app.post("/commands", dependencies=[Depends(auth.require_writer)])
 def post_commands(req: CommandRequest, request: Request):
     """Append a batch of client events, then project them. Atomic all-or-nothing.
 
-    Admin-only (see auth.require_admin): non-admins are rejected with 403 before
-    any write. Aggregate-agnostic: any event whose type has a registered
-    projection handler is accepted.
+    Signed-in writers only (see auth.require_writer): a signed-out visitor, or one
+    downgraded to the read-only `public` role, is rejected with 403 before any
+    write. Aggregate-agnostic: any event whose type has a registered projection
+    handler is accepted, except the server-only types (SERVER_ONLY_EVENT_TYPES,
+    e.g. UserRoleChanged) which have their own privileged endpoints and are refused
+    here so a user cannot forge one to escalate their own role.
 
-    Every event is stamped server-side with `owner`, the signed-in admin's email,
+    Every event is stamped server-side with `owner`, the signed-in user's email,
     overwriting anything the client sent. That is what ties each write to its
     author and lets the projections enforce per-user isolation (an edit or delete
     can only touch a row whose owner matches). The stamped payload is what gets
@@ -109,6 +119,10 @@ def post_commands(req: CommandRequest, request: Request):
         for event in req.events:
             if event.type not in KNOWN_EVENT_TYPES:
                 raise HTTPException(status_code=400, detail=f"Unknown event type: {event.type}")
+            if event.type in SERVER_ONLY_EVENT_TYPES:
+                raise HTTPException(
+                    status_code=403, detail=f"Event type not allowed here: {event.type}"
+                )
 
             # Idempotency: an event already recorded (e.g. a retry after a lost
             # ack) is skipped rather than duplicated.
@@ -138,6 +152,94 @@ def post_commands(req: CommandRequest, request: Request):
     # Never blocks or fails the write — the local commit above is the durable point.
     s3_sync.request_sync()
     return {"status": "ok", "version": version}
+
+
+# ---------------------------------------------------------------------------
+# Role management (privileged write, separate from the self-service command path)
+# ---------------------------------------------------------------------------
+class RoleChangeRequest(BaseModel):
+    role: str  # one of ASSIGNABLE_ROLES; `admin` is never assignable (it is the overlay)
+
+
+def _can_manage_roles(request: Request) -> bool:
+    """Whether the caller may change roles: an `op` (stored) or an admin (overlay).
+
+    Evaluated before the write transaction is opened — effective_role reads the DB,
+    and the single connection lock is not reentrant, so it must not run nested
+    inside db.transaction()."""
+    return auth.effective_role(request) in ("op", "admin")
+
+
+@app.post("/users/{sub}/role")
+def post_user_role(sub: str, body: RoleChangeRequest, request: Request):
+    """Change another user's stored role. Op/admin only.
+
+    Role management is a rare, online, privileged action, so it lives outside the
+    offline command path rather than as a client event: the server issues a
+    `UserRoleChanged` event itself (a server-generated event_id, the acting op/admin
+    stamped as `owner`) and projects it in one transaction, so it still lands in the
+    log and replays like any other write. `admin` cannot be assigned here — it is the
+    live ADMIN_EMAILS overlay, granted and revoked by editing that allowlist.
+    """
+    role = body.role.strip().lower()
+    if role not in ASSIGNABLE_ROLES:
+        raise HTTPException(
+            status_code=400, detail=f"role must be one of {'|'.join(ASSIGNABLE_ROLES)}"
+        )
+    # Authorize before opening the transaction (see _can_manage_roles on the lock).
+    if not _can_manage_roles(request):
+        raise HTTPException(status_code=403, detail="Operator access required")
+
+    actor = (auth.current_user(request) or {}).get("email", "").lower()
+    with db.transaction() as conn:
+        target = conn.execute(
+            "SELECT sub FROM users WHERE sub = ? AND deleted_at IS NULL", (sub,)
+        ).fetchone()
+        if target is None:
+            raise HTTPException(status_code=404, detail="Unknown user")
+
+        event_id = str(uuid.uuid4())
+        created_at = db.utc_now()
+        payload = {"role": role, "owner": actor}
+        conn.execute(
+            "INSERT INTO events (event_id, event_type, aggregate_id, payload, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (event_id, "UserRoleChanged", sub, json.dumps(payload), created_at),
+        )
+        apply_event(conn, "UserRoleChanged", sub, payload, created_at)
+        version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
+
+    s3_sync.request_sync()
+    return {"status": "ok", "version": version, "sub": sub, "role": role}
+
+
+@app.get("/admin/users")
+def get_admin_users(request: Request):
+    """Every user with their stored role, for the role-management page. Op/admin only.
+
+    Each row carries an `is_admin` flag computed live from ADMIN_EMAILS — never the
+    email itself, which still never leaves the server. `admin` is not a stored role
+    and so never appears in `role`; it is surfaced only through that flag.
+    """
+    if not _can_manage_roles(request):
+        raise HTTPException(status_code=403, detail="Operator access required")
+    with db.read() as conn:
+        rows = conn.execute(
+            "SELECT sub, name, picture, role, email FROM users "
+            "WHERE deleted_at IS NULL ORDER BY name"
+        ).fetchall()
+        version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
+    users = [
+        {
+            "sub": r["sub"],
+            "name": r["name"],
+            "picture": r["picture"],
+            "role": r["role"],
+            "is_admin": (r["email"] or "").lower() in auth.ADMIN_EMAILS,
+        }
+        for r in rows
+    ]
+    return {"version": version, "users": users}
 
 
 # ---------------------------------------------------------------------------

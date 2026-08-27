@@ -4,6 +4,7 @@ import DailyTestPage from './pages/DailyTestPage'
 import HistoryPage from './pages/HistoryPage'
 import LeaderboardPage from './pages/LeaderboardPage'
 import ComparePage from './pages/ComparePage'
+import UsersPage from './pages/UsersPage'
 import TemplateTestPage from './pages/TemplateTestPage'
 import { IS_TEMPLATE } from './config'
 
@@ -17,6 +18,8 @@ function App() {
         <Route path="history" element={<HistoryPage />} />
         <Route path="leaderboard" element={<LeaderboardPage />} />
         <Route path="compare" element={<ComparePage />} />
+        {/* Admin-only page; UsersPage guards its own content, backend re-gates. */}
+        <Route path="admin/users" element={<UsersPage />} />
         {IS_TEMPLATE && (
           <Route path="template-test" element={<TemplateTestPage />} />
         )}

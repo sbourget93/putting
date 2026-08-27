@@ -78,6 +78,16 @@ function TopBar() {
               Template Test
             </NavLink>
           )}
+
+          {/* Admin tools, pinned to the bottom of the nav. Backend re-gates each. */}
+          {isAdmin && (
+            <div className="menu-section">
+              <span className="menu-section-label">Admin</span>
+              <NavLink to="/admin/users" className="menu-item" onClick={closeMenu}>
+                Users
+              </NavLink>
+            </div>
+          )}
         </div>
 
         <div className="menu-account">

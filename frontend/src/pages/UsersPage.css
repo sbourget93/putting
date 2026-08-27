@@ -1,0 +1,81 @@
+.user-search {
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 0.75rem;
+  padding: 0 0.75rem;
+  border: 1px solid color-mix(in srgb, CanvasText 25%, Canvas);
+  border-radius: 0.6rem;
+  background: Canvas;
+  color: CanvasText;
+  font: inherit;
+}
+
+.user-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 44px;
+  padding: 0.35rem 0.5rem;
+}
+
+.user-row + .user-row {
+  border-top: 1px solid color-mix(in srgb, CanvasText 12%, Canvas);
+}
+
+.user-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The user's current role, alongside the pencil that opens the picker. */
+.user-role-tag {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, CanvasText 60%, Canvas);
+  font-size: 0.9rem;
+}
+
+/* Pencil affordance, matching the daily-test "Today's putts" edit button. */
+.user-edit-btn {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 34px;
+  border: 0;
+  border-radius: 0.5rem;
+  background: none;
+  color: var(--brand);
+  cursor: pointer;
+}
+
+.user-edit-btn:active {
+  background: color-mix(in srgb, CanvasText 8%, Canvas);
+}
+
+.user-edit-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.user-badge {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--brand) 14%, Canvas);
+  color: var(--brand);
+}

@@ -1,9 +1,13 @@
-"""Tests for admin authorization.
+"""Tests for admin authorization and the signed-in write gate.
 
 Covers the core property of the auth refactor: `is_admin` is derived *live* from
 the ADMIN_EMAILS allowlist on each request, never cached into the session. A
 session holds identity only, so changing the allowlist re-decides admin for an
-already-signed-in user without them logging in again.
+already-signed-in user without them logging in again. Also covers the write gate
+(`require_writer`/`can_write`) for the two roles decidable without a DB read: a
+signed-out visitor (`public`, rejected) and an admin (overlay, allowed). The
+signed-in-user and downgraded-`public` write paths need the projection, so they
+are exercised in the integration suites instead.
 
 auth.py raises at import time unless auth is configured, so we set a client id in
 the environment before importing it. Runs in base python (no HTTP layer needed):
@@ -72,6 +76,28 @@ class AdminAuthTest(unittest.TestCase):
     def test_require_admin_allows_admin(self):
         # No exception means allowed.
         auth.require_admin(_StubRequest({"email": "admin@example.com"}))
+
+    def test_require_writer_rejects_anonymous(self):
+        # A signed-out visitor resolves to the read-only `public` role, so the
+        # write gate rejects them. (No DB needed: current_user is None.)
+        self.assertFalse(auth.can_write(_StubRequest()))
+        with self.assertRaises(HTTPException) as ctx:
+            auth.require_writer(_StubRequest())
+        self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_require_writer_allows_admin(self):
+        # An admin is a writer via the overlay, decided without touching the DB.
+        req = _StubRequest({"email": "admin@example.com"})
+        self.assertTrue(auth.can_write(req))
+        auth.require_writer(req)  # no exception means allowed
+
+    def test_anonymous_effective_role_is_public(self):
+        self.assertEqual(auth.effective_role(_StubRequest()), "public")
+
+    def test_admin_effective_role_is_admin(self):
+        self.assertEqual(
+            auth.effective_role(_StubRequest({"email": "admin@example.com"})), "admin"
+        )
 
 
 if __name__ == "__main__":

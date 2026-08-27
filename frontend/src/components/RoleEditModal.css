@@ -1,0 +1,81 @@
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  z-index: 50;
+}
+
+.modal {
+  width: 100%;
+  max-width: 30rem;
+  background: Canvas;
+  color: CanvasText;
+  border-radius: 1rem;
+  padding: 1.2rem;
+  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.3);
+}
+
+.modal-title {
+  margin: 0 0 1rem;
+  font-size: 1.2rem;
+}
+
+.role-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.role-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 56px;
+  padding: 0.5rem 1rem;
+  border: 1px solid color-mix(in srgb, CanvasText 25%, Canvas);
+  border-radius: 0.7rem;
+  background: Canvas;
+  color: CanvasText;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.role-option.current {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 16%, Canvas);
+  color: var(--brand);
+}
+
+.role-option:active {
+  background: var(--brand);
+  color: var(--brand-text);
+}
+
+.role-option-label {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.role-option-hint {
+  font-size: 0.9rem;
+  color: color-mix(in srgb, currentColor 65%, Canvas);
+}
+
+.role-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.2rem;
+}
+
+@media (min-width: 30rem) {
+  .modal-backdrop {
+    align-items: center;
+  }
+}

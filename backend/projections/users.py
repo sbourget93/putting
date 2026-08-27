@@ -10,11 +10,16 @@ user later changes their email or name (unlike email, which the rest of the
 schema keys `owner` on). `email` is carried as a column so this projection still
 joins to the email-keyed `tests`/`batches` data.
 
-The single event is `UserSignedIn`, enqueued by the client through the normal
-offline engine right after a successful Google login. `owner` (the email) is
-stamped server-side and is authoritative; `name`/`picture` come from the client's
-verified Google profile. Only admins can write, so only admins are recorded, which
-is exactly who has putting data to display.
+`UserSignedIn` is enqueued by the client through the normal offline engine right
+after a successful Google login. `owner` (the email) is stamped server-side and is
+authoritative; `name`/`picture` come from the client's verified Google profile.
+Any signed-in user is recorded, since anyone signed in can write their own data.
+
+`role` is the stored authorization role (`user` by default, or `op`). `admin` is
+never stored here — it is the live `ADMIN_EMAILS` overlay (see auth.is_admin). The
+role changes only via `UserRoleChanged`, which the op-gated `POST /users/{sub}/role`
+endpoint issues; it is refused on the self-service `POST /commands` path so a user
+cannot promote themselves.
 """
 
 import sqlite3
@@ -33,6 +38,7 @@ CREATE TABLE IF NOT EXISTS users (
     email      TEXT NOT NULL,
     name       TEXT NOT NULL,
     picture    TEXT,
+    role       TEXT NOT NULL DEFAULT 'user',
     created_at TEXT NOT NULL,
     updated_at TEXT,
     deleted_at TEXT
@@ -40,6 +46,11 @@ CREATE TABLE IF NOT EXISTS users (
 """
 
 TABLES = ("users",)
+
+# Roles a user may be assigned in the projection. `public` is the signed-in but
+# read-only downgrade; `user` (the default) and `op` can write. `admin` is
+# intentionally absent: it is the live ADMIN_EMAILS overlay, never a stored value.
+ASSIGNABLE_ROLES = ("public", "user", "op")
 
 
 def _signed_in(
@@ -67,4 +78,25 @@ def _signed_in(
     )
 
 
-HANDLERS = {"UserSignedIn": _signed_in}
+def _role_changed(
+    conn: sqlite3.Connection, aggregate_id: str, payload: dict, created_at: str
+) -> None:
+    """Set a user's stored role. Issued only by the op-gated role endpoint, never
+    accepted on `POST /commands` (see main.SERVER_ONLY_EVENT_TYPES), so a user
+    cannot promote themselves. The target is the aggregate id (their `sub`); the
+    stamped `owner` is the acting op/admin and is not used here."""
+    sub = _required({"sub": aggregate_id}, "sub", "UserRoleChanged")
+    role = (payload.get("role") or "").strip().lower()
+    if role not in ASSIGNABLE_ROLES:
+        raise ValueError(
+            f"UserRoleChanged requires role in {'|'.join(ASSIGNABLE_ROLES)}, got {role!r}"
+        )
+    updated = conn.execute(
+        "UPDATE users SET role = ?, updated_at = ? WHERE sub = ? AND deleted_at IS NULL",
+        (role, created_at, sub),
+    ).rowcount
+    if updated == 0:
+        raise ValueError(f"UserRoleChanged for unknown user {sub!r}")
+
+
+HANDLERS = {"UserSignedIn": _signed_in, "UserRoleChanged": _role_changed}
