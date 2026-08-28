@@ -15,13 +15,18 @@ import './LeaderboardPage.css'
 
 function LeaderboardPage() {
   const [range, setRange] = useState<Range>('today')
-  const [expandedSub, setExpandedSub] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   const { start, end } = useMemo(() => windowFor(range), [range])
   const { entries, loading, error } = useLeaderboard(start, end)
 
   function toggle(sub: string) {
-    setExpandedSub((prev) => (prev === sub ? null : sub))
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(sub)) next.delete(sub)
+      else next.add(sub)
+      return next
+    })
   }
 
   return (
@@ -35,7 +40,7 @@ function LeaderboardPage() {
         name="leaderboard-range"
         onChange={(r) => {
           setRange(r)
-          setExpandedSub(null)
+          setExpanded(new Set())
         }}
       />
 
@@ -48,7 +53,7 @@ function LeaderboardPage() {
       ) : (
         <ol className="board-list">
           {entries.map((entry, i) => {
-            const isOpen = expandedSub === entry.sub
+            const isOpen = expanded.has(entry.sub)
             const series: SeriesSpec[] = [
               {
                 id: entry.sub,

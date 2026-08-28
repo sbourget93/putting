@@ -12,3 +12,5 @@ Better: stop building on the instance entirely, build images in CI and just `doc
 
 make app work if server is down.
 different pages/url so that refreshing doesnt break things and you can share links
+admin page to see all data in all tables
+expand multiple graphs
