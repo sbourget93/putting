@@ -165,6 +165,26 @@
   color: var(--brand);
 }
 
+/* Trailing cell for an unfinished test: a caution glyph and how many distances
+   are still owed, standing in for the (misleading) percentage. */
+.test-remaining {
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  text-align: right;
+  font-weight: 600;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  color: color-mix(in srgb, CanvasText 55%, Canvas);
+}
+
+.test-remaining svg {
+  flex: 0 0 auto;
+  color: #c98500;
+}
+
 .kind-badge.free {
   flex: 0 0 auto;
   font-size: 0.68rem;

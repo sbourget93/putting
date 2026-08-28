@@ -21,6 +21,7 @@ import {
   isTestComplete,
   localDay,
   overallPct,
+  remainingTestDistances,
   statsByDistance,
   type Batch,
   type Test,
@@ -221,6 +222,13 @@ function HistoryPage() {
           {entries.map((entry) => {
             const isOpen = expanded.has(entry.key)
             const dayPct = Math.round(overallPct(entry.batches) ?? 0)
+            // An unfinished test hasn't a putt at every distance yet, so its
+            // percentage would be misleading. Flag it and say how much is left
+            // instead. Free groups have no fixed size, so they never show this.
+            const remaining = entry.isTest
+              ? remainingTestDistances(entry.batches, entry.key).length
+              : 0
+            const incomplete = entry.isTest && remaining > 0
             return (
               <li key={entry.key} className="history-entry">
                 <button
@@ -232,7 +240,23 @@ function HistoryPage() {
                   <span className={`chevron${isOpen ? ' open' : ''}`} aria-hidden="true">›</span>
                   <span className="test-date">{formatDay(entry.day)}</span>
                   {!entry.isTest && <span className="kind-badge free">Free</span>}
-                  <span className="test-pct">{dayPct}%</span>
+                  {incomplete ? (
+                    <span className="test-remaining">
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                        <path
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinejoin="round"
+                          strokeLinecap="round"
+                          d="M12 3 1.5 21h21z M12 10v5 M12 18h.01"
+                        />
+                      </svg>
+                      {remaining} {remaining === 1 ? 'batch' : 'batches'} remaining
+                    </span>
+                  ) : (
+                    <span className="test-pct">{dayPct}%</span>
+                  )}
                 </button>
 
                 {isOpen && (

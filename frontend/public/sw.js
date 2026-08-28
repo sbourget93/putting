@@ -16,7 +16,12 @@
  *                    successful navigation refreshes the cached shell so a new
  *                    deploy becomes the cold-start fallback. This is what lets a
  *                    deep link cold-start offline (paired with the nginx SPA
- *                    fallback in production).
+ *                    fallback in production). The fallback fires not only when the
+ *                    network throws (offline) but also when the server answers with
+ *                    an error (a reachable proxy whose backend is down, e.g. a 502)
+ *                    or stalls past NAV_TIMEOUT_MS — in every "server down" shape
+ *                    the SPA still boots from cache instead of showing an error
+ *                    page or hanging. React Router then owns client-side routing.
  *  - other GET     -> stale-while-revalidate: serve cache immediately, refresh
  *                    it in the background. Fingerprinted assets are immutable, so
  *                    this is safe and fast.
@@ -24,6 +29,9 @@
  * Bump CACHE to force a clean sweep of old entries on the next activate.
  */
 const CACHE = 'app-shell-v3'
+// Bound a navigation fetch so a reachable-but-stalled server falls back to the
+// cached shell quickly instead of leaving the page hanging on a blank load.
+const NAV_TIMEOUT_MS = 10000
 const SHELL = ['/', '/index.html', '/favicon.png', '/apple-touch-icon.png', '/manifest.webmanifest']
 
 // The entry JS/CSS have fingerprinted names we can't hard-code. The first page
@@ -74,14 +82,18 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      fetch(request, { signal: AbortSignal.timeout(NAV_TIMEOUT_MS) })
         .then((response) => {
+          // A reachable-but-broken server (proxy up, backend erroring) answers with
+          // an error page. Treat that like being offline: serve the cached shell so
+          // the SPA still boots, rather than handing the user the raw error page.
+          if (!response.ok) {
+            return caches.match('/index.html').then((r) => r || response)
+          }
           // Keep the offline shell current: cache each successful navigation as
           // the fallback so a fresh deploy becomes the cold-start shell.
-          if (response.ok) {
-            const copy = response.clone()
-            void caches.open(CACHE).then((cache) => cache.put('/index.html', copy))
-          }
+          const copy = response.clone()
+          void caches.open(CACHE).then((cache) => cache.put('/index.html', copy))
           return response
         })
         .catch(() => caches.match('/index.html').then((r) => r || Response.error())),

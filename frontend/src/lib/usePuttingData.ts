@@ -19,6 +19,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth-context'
+import { fetchWithTimeout } from './http'
 import { useBatches } from '../offline/aggregates/batches'
 import { useTests } from '../offline/aggregates/tests'
 import { useBaseline } from '../offline/aggregates/baseline'
@@ -59,7 +60,7 @@ export function usePuttingData(): DailyData {
     setLoading(true)
     void (async () => {
       try {
-        const res = await fetch('/api/stats')
+        const res = await fetchWithTimeout('/api/stats')
         if (!res.ok) throw new Error(`fetch stats failed: ${res.status}`)
         const body = (await res.json()) as { global: GlobalStat[] }
         if (!cancelled) {

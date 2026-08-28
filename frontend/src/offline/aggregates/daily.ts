@@ -10,6 +10,7 @@
  * make-%-by-distance baseline — never the full batch log — so nothing here grows
  * with history, no matter how long someone has been putting.
  */
+import { fetchWithTimeout } from '../../lib/http'
 import { localDay, type Batch, type DistanceStat, type Test } from '../../lib/putting'
 
 export interface DailyPayload {
@@ -41,7 +42,7 @@ export function fetchDaily(): Promise<DailyPayload> {
   // Same day and within a tick of another call: share the in-flight request.
   if (inflight && inflight.day === day && now - inflight.at < 200) return inflight.promise
   const promise = (async () => {
-    const res = await fetch(`/api/daily?day=${encodeURIComponent(day)}`)
+    const res = await fetchWithTimeout(`/api/daily?day=${encodeURIComponent(day)}`)
     if (!res.ok) throw new Error(`fetch daily failed: ${res.status}`)
     return (await res.json()) as DailyPayload
   })()

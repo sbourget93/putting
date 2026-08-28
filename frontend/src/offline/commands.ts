@@ -6,6 +6,7 @@
  * AGENTS.md): commands carry no `expected_version`, so there is no conflict
  * response — only success, a permanent 4xx rejection, or a transient failure.
  */
+import { fetchWithTimeout } from '../lib/http'
 import type { CommandEvent } from './types'
 
 /** Build a client-generated command event (ids + timestamp filled in). */
@@ -45,7 +46,7 @@ export class RejectedError extends Error {
  * plain Error on 5xx / network failure (transient — keep the batch and retry).
  */
 export async function postCommands(events: CommandEvent[]): Promise<{ version: number }> {
-  const res = await fetch('/api/commands', {
+  const res = await fetchWithTimeout('/api/commands', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ events }),

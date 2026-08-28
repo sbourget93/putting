@@ -11,6 +11,7 @@
  * history or someone else's.
  */
 import { useEffect, useState } from 'react'
+import { fetchWithTimeout } from './http'
 import type { AppUser, Batch, Test } from './putting'
 
 export interface UsersData {
@@ -30,7 +31,7 @@ export function useUsers(): UsersData {
     setLoading(true)
     void (async () => {
       try {
-        const res = await fetch('/api/users')
+        const res = await fetchWithTimeout('/api/users')
         if (!res.ok) throw new Error(`Could not load players (${res.status})`)
         const body = (await res.json()) as { users: AppUser[] }
         if (!cancelled) {
@@ -83,8 +84,8 @@ export function useUserHistory(sub: string | null): UserHistoryData {
     void (async () => {
       try {
         const [tRes, bRes] = await Promise.all([
-          fetch(`/api/tests${q}`),
-          fetch(`/api/batches${q}`),
+          fetchWithTimeout(`/api/tests${q}`),
+          fetchWithTimeout(`/api/batches${q}`),
         ])
         if (!tRes.ok) throw new Error(`Could not load tests (${tRes.status})`)
         if (!bRes.ok) throw new Error(`Could not load batches (${bRes.status})`)

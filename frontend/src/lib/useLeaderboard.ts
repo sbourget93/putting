@@ -11,6 +11,7 @@
  * local day (see LeaderboardPage), so "today" rolls over at local midnight.
  */
 import { useEffect, useState } from 'react'
+import { fetchWithTimeout } from './http'
 import type { DistanceStat } from './putting'
 
 export interface LeaderboardEntry {
@@ -43,7 +44,7 @@ export function useLeaderboard(start?: string, end?: string): LeaderboardData {
     const qs = params.toString()
     void (async () => {
       try {
-        const res = await fetch(`/api/leaderboard${qs ? `?${qs}` : ''}`)
+        const res = await fetchWithTimeout(`/api/leaderboard${qs ? `?${qs}` : ''}`)
         if (!res.ok) throw new Error(`Could not load leaderboard (${res.status})`)
         const body = (await res.json()) as { users: LeaderboardEntry[] }
         if (!cancelled) {
