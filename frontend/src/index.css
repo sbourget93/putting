@@ -134,6 +134,13 @@ body {
   border-color: transparent;
 }
 
+/* Filled button for a destructive action (e.g. a delete confirmation). */
+.btn-danger {
+  background: #b3261e;
+  color: #fff;
+  border-color: transparent;
+}
+
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;

@@ -5,6 +5,9 @@ There is one row per `(owner, local calendar day)`.
 
 A test carries no state that isn't derivable from its batches.
 Completion and per-distance results are all computed from the [batches](./batches.md) that reference it.
+A test is **complete** when its non-deleted test batches cover every one of the 22 distances (12–33 ft inclusive).
+Only complete tests count toward any stats or graphs (leaderboards, comparisons, the daily baseline, and the history trend).
+This is derived at query time, never stored, so deleting a putt can move a test back to incomplete with no extra bookkeeping.
 Its only purpose is to give those batches a stable id to point at and to record which local day the test belongs to.
 The client supplies `test_date`, because only the device knows its own timezone, and the test resets at local midnight.
 

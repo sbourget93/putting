@@ -20,40 +20,48 @@
   box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.3);
 }
 
-.modal-title {
-  margin: 0 0 1rem;
-  font-size: 1.2rem;
+/* The shared shell for the daily-test putt modals (edit and delete): centered, with
+   the big distance header borrowed from the daily prompt (DailyTestPage.css), so
+   both popups read as the same control. */
+.putt-modal {
+  text-align: center;
 }
 
-/* Same 0–5 buttons as the daily prompt. */
-.putt-edit-buttons {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 0.5rem;
+.putt-modal .prompt-distance {
+  font-size: 3.5rem;
 }
 
-.putt-edit-buttons .made-btn {
-  min-height: 56px;
-  border: 1px solid color-mix(in srgb, CanvasText 25%, Canvas);
-  border-radius: 0.7rem;
-  background: Canvas;
-  color: CanvasText;
-  font: inherit;
-  font-size: 1.4rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-/* The batch's current value, highlighted so the correction is obvious. */
-.putt-edit-buttons .made-btn.current {
+/* The working selection, highlighted so the pending correction is obvious. */
+.putt-modal .made-btn.current {
   border-color: var(--brand);
   background: color-mix(in srgb, var(--brand) 16%, Canvas);
   color: var(--brand);
 }
 
-.putt-edit-buttons .made-btn:active {
-  background: var(--brand);
-  color: var(--brand-text);
+/* A persistent dashed outline on the originally-recorded value. The solid brand
+   fill moves with each tap, but this stays put, so it's always clear where you
+   started. Listed after .current so the dashes win when a button is both. */
+.putt-modal .made-btn.orig {
+  border-color: var(--brand);
+  border-style: dashed;
+}
+
+/* A gentler press than the daily prompt's solid-brand fill. The current value is
+   already the highlighted one, so a full-brand flash on press would sit darker
+   than the selection and read as the chosen value. A neutral tint keeps the
+   selected option the most prominent thing in the popup. */
+.putt-modal .made-btn:active {
+  background: color-mix(in srgb, CanvasText 10%, Canvas);
+  color: CanvasText;
+}
+
+/* The action row (edit's Cancel/Save, delete's Cancel/Delete), matching the role
+   editor. */
+.putt-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.2rem;
 }
 
 @media (min-width: 30rem) {

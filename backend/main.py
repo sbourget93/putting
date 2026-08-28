@@ -21,7 +21,20 @@ import auth
 import db
 import s3_sync
 from projections import KNOWN_EVENT_TYPES, apply_event
+from projections.batches import TEST_DISTANCE_COUNT
 from projections.users import ASSIGNABLE_ROLES
+
+# Only a *complete* daily test (a recorded putt at every distance) counts toward any
+# stats. Completeness is derived, not stored (see tests.md): a test_id is complete
+# when its non-deleted test batches cover all TEST_DISTANCE_COUNT distances. This
+# subquery yields those test_ids; the stat queries restrict to `b.test_id IN (...)`.
+# The count is a trusted server constant, so it is safe to inline.
+COMPLETE_TESTS_SUBQUERY = f"""
+    SELECT test_id FROM batches
+    WHERE kind = 'test' AND deleted_at IS NULL
+    GROUP BY test_id
+    HAVING COUNT(DISTINCT distance) = {TEST_DISTANCE_COUNT}
+"""
 
 
 @asynccontextmanager
@@ -417,9 +430,10 @@ def get_daily(request: Request, day: str | None = None):
 
       - `test`          — that day's daily test (test_id, test_date) or null.
       - `today_batches` — the day's test batches (at most one per distance).
-      - `baseline`      — the player's true all-time make-% by distance (every test
-                          day, today included), the chart's grey comparison line and
-                          the summary's lifetime average.
+      - `baseline`      — the player's make-% by distance over their *complete* past
+                          tests, excluding today, so today's putts are compared
+                          against history, not themselves. This is the chart's grey
+                          comparison line and the summary's lifetime average.
 
     `day` is the client's local calendar day (YYYY-MM-DD); it falls back to the
     server's date only if the client omits it.
@@ -447,14 +461,16 @@ def get_daily(request: Request, day: str | None = None):
                 ).fetchall()
             ]
 
-        # True all-time test make-% by distance — every test day, today included.
+        # Make-% by distance over the player's complete past tests: today is
+        # excluded so it's compared against history, and incomplete days never count.
         baseline_rows = conn.execute(
             "SELECT b.distance AS distance, SUM(b.made) AS made, SUM(b.batch_size) AS attempts "
             "FROM batches b JOIN tests t ON t.test_id = b.test_id AND t.owner = b.owner "
             "WHERE b.owner = ? AND b.kind = 'test' AND b.deleted_at IS NULL "
-            "AND t.deleted_at IS NULL "
+            "AND t.deleted_at IS NULL AND t.test_date <> ? "
+            f"AND b.test_id IN ({COMPLETE_TESTS_SUBQUERY}) "
             "GROUP BY b.distance ORDER BY b.distance",
-            (owner,),
+            (owner, today),
         ).fetchall()
         baseline = [
             {
@@ -495,15 +511,17 @@ def get_stats():
     Public (stats are publicly viewable) and email-free: users are keyed by the
     stable Google `sub` with a display name, joined from the users projection, so
     no email is ever returned. A user appears once they have an identity (signed in
-    at least once) and have recorded putts. `global` is the unweighted mean of each
-    user's percentage per distance (see global_average).
+    at least once) and have completed a test. Only complete tests count (see
+    COMPLETE_TESTS_SUBQUERY). `global` is the unweighted mean of each user's
+    percentage per distance (see global_average).
     """
     with db.read() as conn:
         rows = conn.execute(
             "SELECT u.sub AS sub, u.name AS name, u.picture AS picture, "
             "b.distance AS distance, SUM(b.made) AS made, SUM(b.batch_size) AS attempts "
             "FROM batches b JOIN users u ON u.email = b.owner AND u.deleted_at IS NULL "
-            "WHERE b.deleted_at IS NULL "
+            "WHERE b.deleted_at IS NULL AND b.kind = 'test' "
+            f"AND b.test_id IN ({COMPLETE_TESTS_SUBQUERY}) "
             "GROUP BY u.sub, b.distance "
             "ORDER BY u.name, b.distance"
         ).fetchall()
@@ -535,9 +553,11 @@ def get_stats():
 def get_leaderboard(start: str | None = None, end: str | None = None):
     """Players ranked by overall daily-test make %, over an optional date window.
 
-    Public and email-free, like /stats. Test batches only (free putting is legacy),
-    joined to their test so the window filters on the local test_date. `start`/`end`
-    are inclusive YYYY-MM-DD bounds; omit both for all-time. Each entry also carries
+    Public and email-free, like /stats. Complete test batches only (free putting is
+    legacy, incomplete tests don't count), joined to their test so the window filters
+    on the local test_date. `start`/`end` are inclusive YYYY-MM-DD bounds; omit both
+    for all-time. A test whose test_date falls in the window but which is incomplete
+    is excluded entirely. Each entry also carries
     its make-%-by-distance breakdown so the client can draw that player's line for
     the chosen range without a second request. Only players with attempts in the
     window appear, best overall % first.
@@ -547,6 +567,7 @@ def get_leaderboard(start: str | None = None, end: str | None = None):
         "b.deleted_at IS NULL",
         "t.deleted_at IS NULL",
         "u.deleted_at IS NULL",
+        f"b.test_id IN ({COMPLETE_TESTS_SUBQUERY})",
     ]
     params: list = []
     if start:

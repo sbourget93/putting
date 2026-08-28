@@ -1,0 +1,47 @@
+/* Modal shell, mirroring PuttEditModal.css so this dialog stands alone. */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  z-index: 50;
+}
+
+.modal {
+  width: 100%;
+  max-width: 30rem;
+  background: Canvas;
+  color: CanvasText;
+  border-radius: 1rem;
+  padding: 1.2rem;
+  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.3);
+}
+
+.modal-title {
+  margin: 0 0 1rem;
+  font-size: 1.2rem;
+}
+
+.confirm-modal {
+  max-width: 22rem;
+}
+
+.confirm-message {
+  margin: 0 0 1rem;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+@media (min-width: 30rem) {
+  .modal-backdrop {
+    align-items: center;
+  }
+}

@@ -1,19 +1,22 @@
 /**
  * Role picker dialog for a single user.
  *
- * Names the user and shows the assignable roles as buttons; tapping one only
- * selects it, and an explicit Save commits the change (the caller posts it), so a
- * misfire is harmless until confirmed. `admin` is never here — it is the
- * ADMIN_EMAILS overlay, not an assignable role. Closes on Escape or a backdrop tap.
+ * Laid out like the daily-test batch editor: a small label, the user's name, then
+ * the assignable roles as buttons. Tapping one only selects it, and an explicit
+ * Save commits the change (the caller posts it), so a misfire is harmless until
+ * confirmed. The solid brand fill tracks the working selection while a dashed
+ * outline stays on the currently-assigned role, so it's always clear where you
+ * started. `admin` is never here — it is the ADMIN_EMAILS overlay, not an
+ * assignable role. Closes on Escape or a backdrop tap.
  */
 import { useEffect, useState } from 'react'
 import type { AdminUser, Role } from '../lib/useAdminUsers'
 import './RoleEditModal.css'
 
-const ROLE_OPTIONS: { value: Role; label: string; hint: string }[] = [
-  { value: 'user', label: 'User', hint: 'Can log putts' },
-  { value: 'op', label: 'Op', hint: 'Can manage roles' },
-  { value: 'public', label: 'Public', hint: 'Read-only' },
+const ROLE_OPTIONS: { value: Role; label: string }[] = [
+  { value: 'user', label: 'User' },
+  { value: 'op', label: 'Op' },
+  { value: 'public', label: 'Public' },
 ]
 
 export default function RoleEditModal({
@@ -43,26 +46,36 @@ export default function RoleEditModal({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="modal"
+        className="modal role-edit-modal"
         role="dialog"
         aria-modal="true"
         aria-label={`Edit role for ${user.name}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="modal-title">{user.name} — role</h2>
-        <div className="role-options">
-          {ROLE_OPTIONS.map((o) => (
-            <button
-              key={o.value}
-              type="button"
-              className={o.value === selected ? 'role-option current' : 'role-option'}
-              aria-pressed={o.value === selected}
-              onClick={() => setSelected(o.value)}
-            >
-              <span className="role-option-label">{o.label}</span>
-              <span className="role-option-hint">{o.hint}</span>
-            </button>
-          ))}
+        <p className="role-label">Edit player</p>
+        <p className="role-name">{user.name}</p>
+        <div className="role-field">
+          <p className="role-field-label">Role</p>
+          <div className="role-options">
+            {ROLE_OPTIONS.map((o) => {
+              const isOriginal = o.value === user.role
+              const className = ['role-option']
+              if (o.value === selected) className.push('current')
+              if (isOriginal) className.push('orig')
+              return (
+                <button
+                  key={o.value}
+                  type="button"
+                  className={className.join(' ')}
+                  aria-pressed={o.value === selected}
+                  aria-label={isOriginal ? `${o.label}, current role` : undefined}
+                  onClick={() => setSelected(o.value)}
+                >
+                  {o.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
         <div className="role-actions">
           <button type="button" className="btn" onClick={onClose}>

@@ -37,6 +37,12 @@
   padding-top: 0.6rem;
 }
 
+/* Read-only viewers: dim the panel to match the faded prompt, so the screen reads
+   as "sign in to use" rather than active. */
+.chart-panel-faded {
+  opacity: 0.5;
+}
+
 .chart-legend {
   display: flex;
   flex-wrap: nowrap;

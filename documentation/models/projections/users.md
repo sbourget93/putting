@@ -16,7 +16,7 @@ returns another user's email.
 | `email` | From the server-stamped `owner`. Server-side join key only; never returned for another user. |
 | `name` | Display name from the Google profile. What the UI shows. |
 | `picture` | Google profile picture URL, or `NULL`. |
-| `role` | See [`../../roles.md`](../../roles.md) for available roles. Determines what actions the user can take. |
+| `role` | See [`roles.md`](../../roles/roles.md) for available roles. Determines what actions the user can take. |
 
 ## Relationships
 

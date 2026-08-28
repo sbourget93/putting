@@ -17,7 +17,14 @@ import { useMemo, useRef, useState } from 'react'
 import { useUserHistory, useUsers } from '../lib/useUserHistory'
 import StatsChartPanel from '../components/StatsChartPanel'
 import PercentTrendChart from '../components/PercentTrendChart'
-import { localDay, overallPct, statsByDistance, type Batch, type Test } from '../lib/putting'
+import {
+  isTestComplete,
+  localDay,
+  overallPct,
+  statsByDistance,
+  type Batch,
+  type Test,
+} from '../lib/putting'
 import './HistoryPage.css'
 
 /** Format a YYYY-MM-DD calendar day as a local, human-readable date. */
@@ -89,22 +96,28 @@ function HistoryPage() {
   const viewingSub = selectedSub ?? ownerSub
 
   const entries = useMemo(() => buildEntries(tests, batches), [tests, batches])
-  // The player's true all-time make-% by distance: the identical grey baseline
-  // every day's graph compares against.
-  const baselineStats = useMemo(
-    () => statsByDistance(batches.filter((b) => b.kind === 'test')),
-    [batches],
+
+  // Only complete tests (a putt at every distance) feed the stats and graphs, like
+  // the backend. Incomplete days still appear in the list below, just not here.
+  const completeEntries = useMemo(
+    () => entries.filter((e) => e.isTest && isTestComplete(e.batches)),
+    [entries],
   )
 
-  // Each daily test's overall %, oldest to newest, for the trend graph. Test days
-  // only — the trend is bounded by the player's first and last daily putts.
+  // The player's all-time make-% by distance over complete tests: the identical
+  // grey baseline every day's graph compares against.
+  const baselineStats = useMemo(
+    () => statsByDistance(completeEntries.flatMap((e) => e.batches)),
+    [completeEntries],
+  )
+
+  // Each complete test's overall %, oldest to newest, for the trend graph.
   const trend = useMemo(
     () =>
-      entries
-        .filter((e) => e.isTest)
+      completeEntries
         .map((e) => ({ day: e.day, pct: Math.round(overallPct(e.batches) ?? 0) }))
         .reverse(),
-    [entries],
+    [completeEntries],
   )
 
   function toggle(key: string) {

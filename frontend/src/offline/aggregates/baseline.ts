@@ -1,7 +1,7 @@
 /**
- * The `baseline` aggregate: the player's all-time make-% by distance, excluding
- * today, as the Daily Putts chart's grey comparison line and the summary's
- * lifetime average.
+ * The `baseline` aggregate: the player's make-% by distance over their complete
+ * past tests, excluding today, as the Daily Putts chart's grey comparison line and
+ * the summary's lifetime average.
  *
  * It owns no events — today's putts are excluded from it by definition, so pending
  * writes never change it — hence `reduce` is the identity and `eventTypes` is

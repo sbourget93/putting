@@ -12,13 +12,14 @@
  * A signed-in writer records their own day; logged-out or read-only visitors see
  * a read-only day.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSync } from '../offline/SyncContext'
 import { newEvent } from '../offline/commands'
 import type { CommandEvent } from '../offline/types'
 import { usePuttingData } from '../lib/usePuttingData'
 import StatsChartPanel from '../components/StatsChartPanel'
 import PuttEditModal from '../components/PuttEditModal'
+import PuttDeleteModal from '../components/PuttDeleteModal'
 import {
   TEST_DISTANCES,
   TEST_PUTTS,
@@ -36,6 +37,7 @@ function DailyTestPage() {
   const { enqueue } = useSync()
   const { test, todayBatches, baselineStats, readOnly, loading, error } = usePuttingData()
   const [editing, setEditing] = useState<Batch | null>(null)
+  const [deleting, setDeleting] = useState<Batch | null>(null)
 
   const today = localDay()
   const testId = test?.test_id ?? null
@@ -59,8 +61,26 @@ function DailyTestPage() {
     [todayBatches, testId, today],
   )
 
+  // Distances submitted but not yet confirmed in the folded snapshot. Rapid taps
+  // fire several clicks before React re-renders with the new batch, so `current`
+  // (and, on the first putt, `testId`) are momentarily stale; without this guard a
+  // double-tap records the same slot twice and can start two tests. A distance is
+  // released only once the snapshot *confirms* it (never on absence — that is the
+  // in-flight window itself), so the snapshot dropping it later (a delete) frees it
+  // to be recorded again.
+  const recordedRef = useRef<Set<number>>(new Set())
+  const doneDistances = useMemo(() => new Set(todays.map((b) => b.distance)), [todays])
+  useEffect(() => {
+    for (const d of [...recordedRef.current]) {
+      if (doneDistances.has(d)) recordedRef.current.delete(d)
+    }
+  }, [doneDistances])
+
   function record(made: number) {
     if (current == null) return
+    // Already recorded (snapshot has it) or in flight (tapped, awaiting confirm).
+    if (doneDistances.has(current) || recordedRef.current.has(current)) return
+    recordedRef.current.add(current)
     const events: CommandEvent[] = []
     let id = testId
     if (!id) {
@@ -92,6 +112,15 @@ function DailyTestPage() {
     ])
   }
 
+  // Remove a recorded putt, after the confirm dialog. The server stamps the owner,
+  // so the event needs no payload. Deleting frees that distance's slot, so it
+  // re-enters the prompt queue and can be recorded again.
+  function deletePutt() {
+    if (!deleting) return
+    enqueue([newEvent('BatchDeleted', deleting.batch_id)])
+    setDeleting(null)
+  }
+
   if (loading) return <section className="page"><p className="muted">Loading…</p></section>
 
   const complete = remaining.length === 0
@@ -107,7 +136,11 @@ function DailyTestPage() {
         )}
       </div>
 
-      {readOnly && <p className="muted read-only-note">Viewing read-only. Sign in to record your own.</p>}
+      {readOnly && (
+        <p className="muted read-only-note">
+          Sign in to record your putts. Feel free to explore the rest of the app in the meantime!
+        </p>
+      )}
       {error && <p className="error" role="alert">{error}</p>}
 
       {complete && <CompleteSummary todayPct={overallPct(todays)} lifetimePct={lifetimePct} />}
@@ -117,40 +150,52 @@ function DailyTestPage() {
         batches={todays}
         baselineStats={baselineStats}
         emptyNote="No putts recorded yet today."
+        alwaysRenderChart
+        faded={readOnly}
       />
 
-      {!complete &&
-        (readOnly ? (
-          <div className="panel">
-            <p className="muted">
-              {doneCount === 0
-                ? "Today's test hasn't been started yet."
-                : `${remaining.length} distance${remaining.length === 1 ? '' : 's'} still to go today.`}
-            </p>
+      {!complete && (
+        <div className={readOnly ? 'panel prompt prompt-readonly' : 'panel prompt'}>
+          <p className="prompt-label">Take {TEST_PUTTS} putts from</p>
+          <p className="prompt-distance">
+            {current} <span className="unit">ft</span>
+          </p>
+          <p className="prompt-sub">How many did you make?</p>
+          <div className="made-buttons">
+            {Array.from({ length: TEST_PUTTS + 1 }, (_, n) => (
+              <button
+                key={n}
+                type="button"
+                className="made-btn"
+                disabled={readOnly}
+                onClick={() => record(n)}
+              >
+                {n}
+              </button>
+            ))}
           </div>
-        ) : (
-          <div className="panel prompt">
-            <p className="prompt-label">Putt {TEST_PUTTS} from</p>
-            <p className="prompt-distance">
-              {current} <span className="unit">ft</span>
-            </p>
-            <p className="prompt-sub">How many did you make?</p>
-            <div className="made-buttons">
-              {Array.from({ length: TEST_PUTTS + 1 }, (_, n) => (
-                <button key={n} type="button" className="made-btn" onClick={() => record(n)}>
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
+        </div>
+      )}
 
       {todays.length > 0 && (
-        <TodayBatches batches={todays} editable={!readOnly} onEdit={setEditing} />
+        <TodayBatches
+          batches={todays}
+          editable={!readOnly}
+          onEdit={setEditing}
+          onDelete={setDeleting}
+        />
       )}
 
       {editing && (
         <PuttEditModal batch={editing} onClose={() => setEditing(null)} onPick={saveEdit} />
+      )}
+
+      {deleting && (
+        <PuttDeleteModal
+          batch={deleting}
+          onConfirm={deletePutt}
+          onCancel={() => setDeleting(null)}
+        />
       )}
     </section>
   )
@@ -190,16 +235,19 @@ function CompleteSummary({
 
 /**
  * Each recorded batch today, by distance, with a pencil to correct a fat-fingered
- * count. The pencil is admin-only; the demo view is read-only.
+ * count and a trash can to remove it. Both actions are admin-only; read-only
+ * viewers don't see them.
  */
 function TodayBatches({
   batches,
   editable,
   onEdit,
+  onDelete,
 }: {
   batches: Batch[]
   editable: boolean
   onEdit: (batch: Batch) => void
+  onDelete: (batch: Batch) => void
 }) {
   const ordered = [...batches].sort((a, b) => a.distance - b.distance)
   return (
@@ -211,16 +259,28 @@ function TodayBatches({
             <span className="batch-line-dist">{b.distance}′</span>
             <span className="batch-line-made">{b.made}/{b.batch_size}</span>
             {editable && (
-              <button
-                type="button"
-                className="batch-edit-btn"
-                aria-label={`Edit ${b.distance} ft putt`}
-                onClick={() => onEdit(b)}
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
-                </svg>
-              </button>
+              <span className="batch-line-actions">
+                <button
+                  type="button"
+                  className="batch-edit-btn"
+                  aria-label={`Edit ${b.distance} ft putt`}
+                  onClick={() => onEdit(b)}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="batch-delete-btn"
+                  aria-label={`Delete ${b.distance} ft putt`}
+                  onClick={() => onDelete(b)}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                  </svg>
+                </button>
+              </span>
             )}
           </li>
         ))}

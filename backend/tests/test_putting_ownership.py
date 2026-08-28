@@ -185,36 +185,16 @@ class PuttingOwnershipTest(unittest.TestCase):
             },
         )
 
-    def _record_putt(self, client, batch_id, distance, batch_size, made):
-        return client.post(
-            "/commands",
-            json={
-                "events": [
-                    {
-                        "event_id": batch_id,
-                        "type": "BatchRecorded",
-                        "aggregate_id": batch_id,
-                        "data": {
-                            "kind": "free",
-                            "distance": distance,
-                            "batch_size": batch_size,
-                            "made": made,
-                        },
-                        "created_at": "2026-08-22T00:00:00Z",
-                    }
-                ]
-            },
-        )
-
     def test_stats_are_per_user_and_the_global_average_is_unweighted(self):
         with TestClient(self._app) as client:
-            # Alice: a perfect 5-putt set at 12 ft. Bob: 0/100 at the same distance.
+            # Only complete tests count, so each player records a full test: Alice
+            # makes every putt, Bob makes none.
             self._login_as(client, ALICE)
             self.assertEqual(self._record_identity(client, "sub-alice", "Alice A").status_code, 200)
-            self.assertEqual(self._record_putt(client, "a12", 12, 5, 5).status_code, 200)
+            self.assertEqual(self._record_full_test(client, "t-alice", "2026-08-26", made=5).status_code, 200)
             self._login_as(client, BOB)
             self.assertEqual(self._record_identity(client, "sub-bob", "Bob B").status_code, 200)
-            self.assertEqual(self._record_putt(client, "b12", 12, 100, 0).status_code, 200)
+            self.assertEqual(self._record_full_test(client, "t-bob", "2026-08-26", made=0).status_code, 200)
 
             body = client.get("/stats").json()
 
@@ -226,10 +206,28 @@ class PuttingOwnershipTest(unittest.TestCase):
             self.assertEqual(by_sub["sub-alice"]["stats"][0], {"distance": 12, "made": 5, "attempts": 5, "pct": 100.0})
 
             # Global at 12 ft is the mean of the two percentages (100, 0) = 50 —
-            # unweighted, so Bob's 100 putts do not drag it toward 0.
+            # unweighted, so a heavy putter would not drag it either way.
             g12 = next(g for g in body["global"] if g["distance"] == 12)
             self.assertEqual(g12["pct"], 50.0)
             self.assertEqual(g12["users"], 2)
+
+    def test_incomplete_tests_are_excluded_from_stats(self):
+        with TestClient(self._app) as client:
+            # An incomplete test (one distance) never appears in the stats, and a
+            # player with only incomplete tests does not appear at all.
+            self._login_as(client, ALICE)
+            self.assertEqual(self._record_identity(client, "sub-alice", "Alice A").status_code, 200)
+            self.assertEqual(self._record_test(client, "t-partial", "b-partial", "2026-08-26", 12, 5).status_code, 200)
+
+            self.assertEqual(client.get("/stats").json()["users"], [])
+
+            # Completing the test brings the player in.
+            self.assertEqual(self._record_full_test(client, "t-full", "2026-08-25", made=3).status_code, 200)
+            by_sub = {u["sub"]: u for u in client.get("/stats").json()["users"]}
+            self.assertEqual(set(by_sub), {"sub-alice"})
+            # Only the complete test's putts are pooled (3/5 at 12 ft), not the
+            # incomplete one (which would have pushed 12 ft to 8/10).
+            self.assertEqual(by_sub["sub-alice"]["stats"][0], {"distance": 12, "made": 3, "attempts": 5, "pct": 60.0})
 
     def _record_test(self, client, test_id, batch_id, test_date, distance, made):
         return client.post(
@@ -260,47 +258,93 @@ class PuttingOwnershipTest(unittest.TestCase):
             },
         )
 
+    def _record_full_test(self, client, test_id, test_date, made=5):
+        """Record a *complete* test: a 5-putt set at every distance 12-33, so it
+        counts toward stats. `made` is the makes per distance (uniform)."""
+        events = [
+            {
+                "event_id": f"ts-{test_id}",
+                "type": "TestStarted",
+                "aggregate_id": test_id,
+                "data": {"test_date": test_date},
+                "created_at": f"{test_date}T09:00:00Z",
+            }
+        ]
+        for distance in range(12, 34):
+            events.append(
+                {
+                    "event_id": f"{test_id}-{distance}",
+                    "type": "BatchRecorded",
+                    "aggregate_id": f"{test_id}-b{distance}",
+                    "data": {
+                        "kind": "test",
+                        "test_id": test_id,
+                        "distance": distance,
+                        "batch_size": 5,
+                        "made": made,
+                    },
+                    "created_at": f"{test_date}T09:00:00Z",
+                }
+            )
+        return client.post("/commands", json={"events": events})
+
     def test_leaderboard_ranks_by_overall_and_filters_by_date(self):
         with TestClient(self._app) as client:
-            # Alice: a strong test today. Bob: a weaker test a month ago.
+            # Alice: a strong complete test today. Bob: a weaker complete test a
+            # month ago. Only complete tests are ranked.
             self._login_as(client, ALICE)
             self.assertEqual(self._record_identity(client, "sub-alice", "Alice A").status_code, 200)
-            self.assertEqual(self._record_test(client, "t-a", "b-a", "2026-08-26", 12, 5).status_code, 200)
+            self.assertEqual(self._record_full_test(client, "t-a", "2026-08-26", made=5).status_code, 200)
             self._login_as(client, BOB)
             self.assertEqual(self._record_identity(client, "sub-bob", "Bob B").status_code, 200)
-            self.assertEqual(self._record_test(client, "t-b", "b-b", "2026-07-26", 12, 2).status_code, 200)
+            self.assertEqual(self._record_full_test(client, "t-b", "2026-07-26", made=2).status_code, 200)
 
             # All-time: both players, best overall % first (Alice 100 > Bob 40).
             body = client.get("/leaderboard").json()
             self.assertNotIn("email", json.dumps(body))
             self.assertEqual([u["sub"] for u in body["users"]], ["sub-alice", "sub-bob"])
             self.assertEqual(body["users"][0]["overall_pct"], 100.0)
-            self.assertEqual(body["users"][0]["attempts"], 5)
+            self.assertEqual(body["users"][0]["attempts"], 110)  # 5 putts x 22 distances
             self.assertEqual(body["users"][0]["stats"][0]["distance"], 12)
 
             # Windowed to today: only Alice's test falls inside.
             today = client.get("/leaderboard", params={"start": "2026-08-26", "end": "2026-08-26"}).json()
             self.assertEqual([u["sub"] for u in today["users"]], ["sub-alice"])
 
-    def test_daily_payload_is_bounded_and_baseline_is_all_time(self):
+    def test_leaderboard_excludes_incomplete_tests(self):
+        with TestClient(self._app) as client:
+            # A partial test in the window does not put the player on the board.
+            self._login_as(client, ALICE)
+            self.assertEqual(self._record_identity(client, "sub-alice", "Alice A").status_code, 200)
+            self.assertEqual(self._record_test(client, "t-partial", "b-partial", "2026-08-26", 12, 5).status_code, 200)
+            self.assertEqual(client.get("/leaderboard").json()["users"], [])
+
+    def test_daily_baseline_excludes_today_and_incomplete_tests(self):
         with TestClient(self._app) as client:
             self._login_as(client, ALICE)
-            # Yesterday's test and today's in-progress test, same distance.
-            self.assertEqual(self._record_test(client, "t-old", "b-old", "2026-08-25", 12, 4).status_code, 200)
+            # A complete test two days back (the only thing that should feed the
+            # baseline), an incomplete test yesterday, and today's in-progress test.
+            self.assertEqual(self._record_full_test(client, "t-old", "2026-08-24", made=4).status_code, 200)
+            self.assertEqual(self._record_test(client, "t-partial", "b-partial", "2026-08-25", 12, 0).status_code, 200)
             self.assertEqual(self._record_test(client, "t-new", "b-new", "2026-08-26", 12, 5).status_code, 200)
 
             body = client.get("/daily", params={"day": "2026-08-26"}).json()
             # Today's test and only today's batches.
             self.assertEqual(body["test"], {"test_id": "t-new", "test_date": "2026-08-26"})
             self.assertEqual([b["batch_id"] for b in body["today_batches"]], ["b-new"])
-            # Baseline is the true all-time average: both days pooled (9/10 at 12 ft).
-            self.assertEqual(body["baseline"], [{"distance": 12, "made": 9, "attempts": 10, "pct": 90.0}])
+            # Baseline is only the complete past test: all 22 distances, and 12 ft is
+            # 4/5 — proof that today (would make it 9/10) and the incomplete day
+            # (would make it 4/10) are both excluded.
+            self.assertEqual(len(body["baseline"]), 22)
+            d12 = next(b for b in body["baseline"] if b["distance"] == 12)
+            self.assertEqual(d12, {"distance": 12, "made": 4, "attempts": 5, "pct": 80.0})
 
-            # A day with no test: no test, no batches, but the all-time baseline stands.
-            empty = client.get("/daily", params={"day": "2026-08-27"}).json()
+            # A day with no test: no test, no batches, but the baseline still stands.
+            empty = client.get("/daily", params={"day": "2026-08-28"}).json()
             self.assertIsNone(empty["test"])
             self.assertEqual(empty["today_batches"], [])
-            self.assertEqual(empty["baseline"], [{"distance": 12, "made": 9, "attempts": 10, "pct": 90.0}])
+            empty_d12 = next(b for b in empty["baseline"] if b["distance"] == 12)
+            self.assertEqual(empty_d12, {"distance": 12, "made": 4, "attempts": 5, "pct": 80.0})
 
     def test_daily_test_start_and_first_putt_commit_together(self):
         with TestClient(self._app) as client:

@@ -78,6 +78,16 @@ export function remainingTestDistances(batches: Batch[], testId: string | null):
   return TEST_DISTANCES.filter((d) => !done.has(d))
 }
 
+/**
+ * Whether a single test's batches make a complete test: a putt recorded at every
+ * one of the 22 distances. Only complete tests feed the stats and history graphs,
+ * mirroring the backend's COMPLETE_TESTS_SUBQUERY. Pass the batches of one test.
+ */
+export function isTestComplete(batches: Batch[]): boolean {
+  const distances = new Set(batches.map((b) => b.distance))
+  return TEST_DISTANCES.every((d) => distances.has(d))
+}
+
 /** Constrain a number to the inclusive range [min, max]. */
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))

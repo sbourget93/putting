@@ -20,29 +20,65 @@
   box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.3);
 }
 
-.modal-title {
-  margin: 0 0 1rem;
-  font-size: 1.2rem;
+/* Centered header, mirroring the daily-test batch editor. */
+.role-edit-modal {
+  text-align: center;
 }
 
+/* Small uppercase label, like the batch popup's "Edit putt from". */
+.role-label {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  color: color-mix(in srgb, CanvasText 55%, Canvas);
+}
+
+/* The name in the batch popup's "ft" unit style: modest, not the big blue value. */
+.role-name {
+  margin: 0.2rem 0 1rem;
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+
+/* The role choices live in their own labeled box: a faint neutral fill sets it
+   apart from the modal surface so it reads as one grouped field. */
+.role-field {
+  border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
+  border-radius: 0.8rem;
+  padding: 0.8rem;
+  background: color-mix(in srgb, CanvasText 4%, Canvas);
+  text-align: left;
+}
+
+.role-field-label {
+  margin: 0 0 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  color: color-mix(in srgb, CanvasText 55%, Canvas);
+}
+
+/* One row of choices, like the daily prompt's putt-number buttons. */
 .role-options {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 0.5rem;
 }
 
 .role-option {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  justify-content: center;
   min-height: 56px;
-  padding: 0.5rem 1rem;
+  padding: 0.5rem;
   border: 1px solid color-mix(in srgb, CanvasText 25%, Canvas);
   border-radius: 0.7rem;
   background: Canvas;
   color: CanvasText;
   font: inherit;
-  text-align: left;
+  font-size: 1.1rem;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -52,19 +88,20 @@
   color: var(--brand);
 }
 
+/* A persistent dashed outline on the currently-assigned role. The solid fill moves
+   with each tap, but this stays put. Listed after .current so the dashes win when a
+   button is both. */
+.role-option.orig {
+  border-color: var(--brand);
+  border-style: dashed;
+}
+
+/* A neutral press, not a solid-brand fill: the selected role is already the
+   highlighted one, so a full-brand flash on press would sit darker than the
+   selection and read as the chosen value. */
 .role-option:active {
-  background: var(--brand);
-  color: var(--brand-text);
-}
-
-.role-option-label {
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.role-option-hint {
-  font-size: 0.9rem;
-  color: color-mix(in srgb, currentColor 65%, Canvas);
+  background: color-mix(in srgb, CanvasText 10%, Canvas);
+  color: CanvasText;
 }
 
 .role-actions {

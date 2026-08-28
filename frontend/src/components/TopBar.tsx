@@ -9,7 +9,7 @@ import './TopBar.css'
 function TopBar() {
   const [menuOpen, setMenuOpen] = useState(false)
   const closeMenu = () => setMenuOpen(false)
-  const { user, isAdmin, canWrite, signOut } = useAuth()
+  const { user, isAdmin, signOut } = useAuth()
 
   useEffect(() => {
     if (!menuOpen) return
@@ -40,8 +40,8 @@ function TopBar() {
           <NavLink to="/" end className="app-name" onClick={closeMenu}>
             {APP_NAME}
           </NavLink>
-          {/* Global sync envelope, shown to writers who run the offline engine. */}
-          {canWrite && <SyncMenu />}
+          {/* Global sync envelope, admin-only. */}
+          {isAdmin && <SyncMenu />}
         </div>
       </header>
 

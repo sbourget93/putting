@@ -63,6 +63,21 @@
   color: var(--brand-text);
 }
 
+/* Read-only viewers see the prompt but cannot record: the whole section is dimmed
+   as one, so it reads as "sign in to use", not a broken control. */
+.prompt-readonly {
+  opacity: 0.5;
+}
+
+.made-btn:disabled {
+  cursor: default;
+}
+
+.made-btn:disabled:active {
+  background: Canvas;
+  color: CanvasText;
+}
+
 .summary {
   text-align: center;
 }
@@ -126,8 +141,21 @@
   color: color-mix(in srgb, CanvasText 60%, Canvas);
 }
 
-/* Pencil: kept a wide 44px tap target, but shorter so the rows stay compact. */
-.batch-edit-btn {
+.batch-line-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+/* Nudge the trash toward the pencil so the pair reads as one control cluster. */
+.batch-delete-btn {
+  margin-left: -0.4rem;
+}
+
+/* Pencil / trash: kept a wide 44px tap target, but shorter so the rows stay
+   compact. The trash is muted until pressed so edit reads as the primary action. */
+.batch-edit-btn,
+.batch-delete-btn {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -138,15 +166,28 @@
   border: 0;
   border-radius: 0.5rem;
   background: none;
-  color: var(--brand);
   cursor: pointer;
 }
 
-.batch-edit-btn:active {
+.batch-edit-btn {
+  color: var(--brand);
+}
+
+.batch-delete-btn {
+  color: color-mix(in srgb, CanvasText 55%, Canvas);
+}
+
+.batch-delete-btn:active {
+  color: #b3261e;
+}
+
+.batch-edit-btn:active,
+.batch-delete-btn:active {
   background: color-mix(in srgb, CanvasText 8%, Canvas);
 }
 
-.batch-edit-btn svg {
+.batch-edit-btn svg,
+.batch-delete-btn svg {
   width: 20px;
   height: 20px;
   fill: currentColor;

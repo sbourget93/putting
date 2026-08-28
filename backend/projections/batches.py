@@ -21,6 +21,10 @@ import sqlite3
 FREE_MIN, FREE_MAX = 10, 60
 TEST_MIN, TEST_MAX = 12, 33
 TEST_BATCH_SIZE = 5
+# How many distances a full daily test covers (12-33 ft inclusive). A test is
+# "complete" once it has a putt recorded at every one of these; stats count only
+# complete tests. Derived, never stored (see documentation/models/projections/tests.md).
+TEST_DISTANCE_COUNT = TEST_MAX - TEST_MIN + 1
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS batches (
