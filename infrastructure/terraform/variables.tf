@@ -58,7 +58,7 @@ variable "repo_url" {
 }
 
 variable "secrets_path" {
-  description = "SSM Parameter Store path prefix for the login secrets the instance reads at boot (google_client_id, admin_emails, session_secret). Account-level by default so it is shared across apps; no leading resource, no trailing slash."
+  description = "SSM Parameter Store path prefix for the login secrets the instance reads at boot (google_client_id, admin_subs, session_secret). Account-level by default so it is shared across apps; no leading resource, no trailing slash."
   type        = string
   default     = "/shared"
 }

@@ -51,7 +51,7 @@ set +x  # stop command tracing so secrets never reach the cloud-init log
 SSM() { aws ssm get-parameter --region ${region} --name "$1" --with-decryption \
   --query Parameter.Value --output text 2>/dev/null || true; }
 GOOGLE_CLIENT_ID="$(SSM ${secrets_path}/google_client_id)"
-ADMIN_EMAILS="$(SSM ${secrets_path}/admin_emails)"
+ADMIN_SUBS="$(SSM ${secrets_path}/admin_subs)"
 SESSION_SECRET="$(SSM ${secrets_path}/session_secret)"
 for required in GOOGLE_CLIENT_ID SESSION_SECRET; do
   if [ -z "$${!required}" ]; then
@@ -77,7 +77,7 @@ docker run -d --restart unless-stopped \
   -e S3_EVENTS_PREFIX=${s3_events_prefix} \
   -e AWS_DEFAULT_REGION=${region} \
   -e GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
-  -e ADMIN_EMAILS="$ADMIN_EMAILS" \
+  -e ADMIN_SUBS="$ADMIN_SUBS" \
   -e SESSION_SECRET="$SESSION_SECRET" \
   -e COOKIE_SECURE=1 \
   ${app_name}-backend
