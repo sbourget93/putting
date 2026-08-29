@@ -43,7 +43,7 @@ export interface DeadLetter {
  * per-aggregate projection modules.
  */
 export interface AggregateDescriptor<Row = unknown> {
-  /** Snapshot key, e.g. 'foos'. Matches the server query it fetches. */
+  /** Snapshot key, e.g. 'batches'. Matches the server query it fetches. */
   name: string
   /** Event types this aggregate owns, used to route `describe`. */
   eventTypes: string[]

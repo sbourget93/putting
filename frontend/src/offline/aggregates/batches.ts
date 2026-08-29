@@ -37,7 +37,6 @@ function reduce(rows: Batch[], ev: CommandEvent): Batch[] {
         ...rows,
         {
           batch_id: ev.aggregate_id,
-          kind: str(ev.data, 'kind') === 'test' ? 'test' : 'free',
           test_id: str(ev.data, 'test_id') || null,
           distance: num(ev.data, 'distance'),
           batch_size: num(ev.data, 'batch_size'),

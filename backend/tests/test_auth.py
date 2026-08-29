@@ -1,16 +1,17 @@
 """Tests for admin authorization and the signed-in write gate.
 
 Covers the core property of the auth refactor: `is_admin` is derived *live* from
-the ADMIN_EMAILS allowlist on each request, never cached into the session. A
-session holds identity only, so changing the allowlist re-decides admin for an
-already-signed-in user without them logging in again. Also covers the write gate
+the ADMIN_SUBS allowlist on each request, never cached into the session. A session
+holds identity only, so changing the allowlist re-decides admin for an already-
+signed-in user without them logging in again. Also covers the write gate
 (`require_writer`/`can_write`) for the two roles decidable without a DB read: a
 signed-out visitor (`public`, rejected) and an admin (overlay, allowed). The
 signed-in-user and downgraded-`public` write paths need the projection, so they
 are exercised in the integration suites instead.
 
-auth.py raises at import time unless auth is configured, so we set a client id in
-the environment before importing it. Runs in base python (no HTTP layer needed):
+Admin is keyed on the Google `sub`, not email, so no email is read anywhere. auth.py
+raises at import time unless auth is configured, so we set a client id in the
+environment before importing it. Runs in base python (no HTTP layer needed):
 `is_admin`/`require_admin` only read `request.session`, which we stub.
 
 Run (from the backend/ dir): python -m unittest tests.test_auth
@@ -35,22 +36,18 @@ class _StubRequest:
 class AdminAuthTest(unittest.TestCase):
     def setUp(self):
         # Isolate global auth state from the environment and other tests.
-        self._orig_admins = auth.ADMIN_EMAILS
-        auth.ADMIN_EMAILS = {"admin@example.com"}
+        self._orig_admins = auth.ADMIN_SUBS
+        auth.ADMIN_SUBS = {"sub-admin"}
 
     def tearDown(self):
-        auth.ADMIN_EMAILS = self._orig_admins
+        auth.ADMIN_SUBS = self._orig_admins
 
-    def test_allowlisted_email_is_admin(self):
-        req = _StubRequest({"email": "admin@example.com"})
+    def test_allowlisted_sub_is_admin(self):
+        req = _StubRequest({"sub": "sub-admin"})
         self.assertTrue(auth.is_admin(req))
 
-    def test_email_match_is_case_insensitive(self):
-        req = _StubRequest({"email": "Admin@Example.COM"})
-        self.assertTrue(auth.is_admin(req))
-
-    def test_non_allowlisted_email_is_not_admin(self):
-        req = _StubRequest({"email": "someone@example.com"})
+    def test_non_allowlisted_sub_is_not_admin(self):
+        req = _StubRequest({"sub": "sub-someone"})
         self.assertFalse(auth.is_admin(req))
 
     def test_anonymous_request_is_not_admin(self):
@@ -59,23 +56,23 @@ class AdminAuthTest(unittest.TestCase):
     def test_admin_is_decided_live_not_from_the_session(self):
         # Same session throughout; only the allowlist changes. The user does not
         # sign in again, yet their admin status follows the allowlist.
-        req = _StubRequest({"email": "promoted@example.com"})
+        req = _StubRequest({"sub": "sub-promoted"})
         self.assertFalse(auth.is_admin(req))
 
-        auth.ADMIN_EMAILS = auth.ADMIN_EMAILS | {"promoted@example.com"}
+        auth.ADMIN_SUBS = auth.ADMIN_SUBS | {"sub-promoted"}
         self.assertTrue(auth.is_admin(req))
 
-        auth.ADMIN_EMAILS = auth.ADMIN_EMAILS - {"promoted@example.com"}
+        auth.ADMIN_SUBS = auth.ADMIN_SUBS - {"sub-promoted"}
         self.assertFalse(auth.is_admin(req))
 
     def test_require_admin_rejects_non_admin(self):
         with self.assertRaises(HTTPException) as ctx:
-            auth.require_admin(_StubRequest({"email": "someone@example.com"}))
+            auth.require_admin(_StubRequest({"sub": "sub-someone"}))
         self.assertEqual(ctx.exception.status_code, 403)
 
     def test_require_admin_allows_admin(self):
         # No exception means allowed.
-        auth.require_admin(_StubRequest({"email": "admin@example.com"}))
+        auth.require_admin(_StubRequest({"sub": "sub-admin"}))
 
     def test_require_writer_rejects_anonymous(self):
         # A signed-out visitor resolves to the read-only `public` role, so the
@@ -87,7 +84,7 @@ class AdminAuthTest(unittest.TestCase):
 
     def test_require_writer_allows_admin(self):
         # An admin is a writer via the overlay, decided without touching the DB.
-        req = _StubRequest({"email": "admin@example.com"})
+        req = _StubRequest({"sub": "sub-admin"})
         self.assertTrue(auth.can_write(req))
         auth.require_writer(req)  # no exception means allowed
 
@@ -96,7 +93,7 @@ class AdminAuthTest(unittest.TestCase):
 
     def test_admin_effective_role_is_admin(self):
         self.assertEqual(
-            auth.effective_role(_StubRequest({"email": "admin@example.com"})), "admin"
+            auth.effective_role(_StubRequest({"sub": "sub-admin"})), "admin"
         )
 
 

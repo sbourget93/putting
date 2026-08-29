@@ -5,8 +5,7 @@ import HistoryPage from './pages/HistoryPage'
 import LeaderboardPage from './pages/LeaderboardPage'
 import ComparePage from './pages/ComparePage'
 import UsersPage from './pages/UsersPage'
-import TemplateTestPage from './pages/TemplateTestPage'
-import { IS_TEMPLATE } from './config'
+import DataPage from './pages/DataPage'
 
 function App() {
   // Layout renders the top bar + navigation drawer and hosts each page via an
@@ -18,11 +17,9 @@ function App() {
         <Route path="history" element={<HistoryPage />} />
         <Route path="leaderboard" element={<LeaderboardPage />} />
         <Route path="compare" element={<ComparePage />} />
-        {/* Admin-only page; UsersPage guards its own content, backend re-gates. */}
+        {/* Admin-only pages; each guards its own content, backend re-gates. */}
         <Route path="admin/users" element={<UsersPage />} />
-        {IS_TEMPLATE && (
-          <Route path="template-test" element={<TemplateTestPage />} />
-        )}
+        <Route path="admin/data" element={<DataPage />} />
       </Route>
     </Routes>
   )

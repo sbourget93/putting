@@ -9,9 +9,6 @@
  * own (or the demo owner's). All of it is fetched online on demand (see
  * useUserHistory) — History is not cached on the device, only Daily Putts is.
  * Editing was removed for now.
- *
- * Legacy free batches (no test) are grouped by their calendar day into their own
- * entries so nothing is hidden, even though free putting is no longer recorded.
  */
 import { useMemo, useRef, useState } from 'react'
 import { useUserHistory, useUsers } from '../lib/useUserHistory'
@@ -19,7 +16,6 @@ import StatsChartPanel from '../components/StatsChartPanel'
 import PercentTrendChart from '../components/PercentTrendChart'
 import {
   isTestComplete,
-  localDay,
   overallPct,
   remainingTestDistances,
   statsByDistance,
@@ -41,43 +37,28 @@ function formatDay(day: string): string {
   })
 }
 
-/** One collapsible entry: a day (test or legacy free) and the batches under it. */
+/** One collapsible entry: a daily test and the batches under it. */
 interface DayEntry {
   key: string
   day: string
-  isTest: boolean
   batches: Batch[]
 }
 
-/**
- * Group batches into one entry per test, newest first. Test batches attach to
- * their test; legacy free batches (no test) are bucketed by their calendar day.
- */
+/** Group batches under their daily test, newest first. */
 function buildEntries(tests: Test[], batches: Batch[]): DayEntry[] {
   const byTest = new Map<string, Batch[]>()
-  const freeByDay = new Map<string, Batch[]>()
-
   for (const b of batches) {
-    if (b.kind === 'test' && b.test_id) {
-      const list = byTest.get(b.test_id) ?? []
-      list.push(b)
-      byTest.set(b.test_id, list)
-    } else {
-      const day = localDay(new Date(b.created_at))
-      const list = freeByDay.get(day) ?? []
-      list.push(b)
-      freeByDay.set(day, list)
-    }
+    if (!b.test_id) continue
+    const list = byTest.get(b.test_id) ?? []
+    list.push(b)
+    byTest.set(b.test_id, list)
   }
 
   const entries: DayEntry[] = []
   for (const t of tests) {
     const testBatches = byTest.get(t.test_id) ?? []
     if (testBatches.length === 0) continue
-    entries.push({ key: t.test_id, day: t.test_date, isTest: true, batches: testBatches })
-  }
-  for (const [day, list] of freeByDay) {
-    entries.push({ key: `free-${day}`, day, isTest: false, batches: list })
+    entries.push({ key: t.test_id, day: t.test_date, batches: testBatches })
   }
 
   return entries.sort((a, b) => b.day.localeCompare(a.day))
@@ -101,7 +82,7 @@ function HistoryPage() {
   // Only complete tests (a putt at every distance) feed the stats and graphs, like
   // the backend. Incomplete days still appear in the list below, just not here.
   const completeEntries = useMemo(
-    () => entries.filter((e) => e.isTest && isTestComplete(e.batches)),
+    () => entries.filter((e) => isTestComplete(e.batches)),
     [entries],
   )
 
@@ -223,12 +204,9 @@ function HistoryPage() {
             const isOpen = expanded.has(entry.key)
             const dayPct = Math.round(overallPct(entry.batches) ?? 0)
             // An unfinished test hasn't a putt at every distance yet, so its
-            // percentage would be misleading. Flag it and say how much is left
-            // instead. Free groups have no fixed size, so they never show this.
-            const remaining = entry.isTest
-              ? remainingTestDistances(entry.batches, entry.key).length
-              : 0
-            const incomplete = entry.isTest && remaining > 0
+            // percentage would be misleading. Flag it and say how much is left instead.
+            const remaining = remainingTestDistances(entry.batches, entry.key).length
+            const incomplete = remaining > 0
             return (
               <li key={entry.key} className="history-entry">
                 <button
@@ -239,7 +217,6 @@ function HistoryPage() {
                 >
                   <span className={`chevron${isOpen ? ' open' : ''}`} aria-hidden="true">›</span>
                   <span className="test-date">{formatDay(entry.day)}</span>
-                  {!entry.isTest && <span className="kind-badge free">Free</span>}
                   {incomplete ? (
                     <span className="test-remaining">
                       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">

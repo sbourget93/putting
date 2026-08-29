@@ -25,6 +25,10 @@ from fastapi.testclient import TestClient  # noqa: E402
 ALICE = "alice@example.com"
 BOB = "bob@example.com"
 
+# Ownership is keyed on the Google `sub`, so each stubbed login carries one. The
+# email labels above are only fixture names now; auth.py never stores them.
+SUBS = {ALICE: "sub-alice", BOB: "sub-bob"}
+
 
 class PuttingOwnershipTest(unittest.TestCase):
     def setUp(self):
@@ -33,8 +37,8 @@ class PuttingOwnershipTest(unittest.TestCase):
         db.DB_PATH = self._tmp.name
         db._conn = None
 
-        self._orig_admins = auth.ADMIN_EMAILS
-        auth.ADMIN_EMAILS = {ALICE, BOB}
+        self._orig_admins = auth.ADMIN_SUBS
+        auth.ADMIN_SUBS = {SUBS[ALICE], SUBS[BOB]}
 
         import s3_sync  # noqa: E402
 
@@ -42,24 +46,30 @@ class PuttingOwnershipTest(unittest.TestCase):
         s3_sync.BUCKET = ""
 
         import main  # noqa: E402
+        from routers import putting  # noqa: E402
 
-        self._main = main
-        self._orig_demo = main.DEMO_OWNER_EMAIL
-        main.DEMO_OWNER_EMAIL = ALICE  # the signed-out demo view shows Alice
+        # DEMO_OWNER_SUB lives on the putting router; patch it there.
+        self._putting = putting
+        self._orig_demo = putting.DEMO_OWNER_SUB
+        putting.DEMO_OWNER_SUB = SUBS[ALICE]  # the signed-out demo view shows Alice
         self._app = main.app
 
     def tearDown(self):
         import s3_sync
 
-        auth.ADMIN_EMAILS = self._orig_admins
+        auth.ADMIN_SUBS = self._orig_admins
         s3_sync.BUCKET = self._orig_bucket
-        self._main.DEMO_OWNER_EMAIL = self._orig_demo
+        self._putting.DEMO_OWNER_SUB = self._orig_demo
         db._conn = None
         os.unlink(self._tmp.name)
 
     def _login_as(self, client, email):
         original = auth.id_token.verify_oauth2_token
-        auth.id_token.verify_oauth2_token = lambda *a, **k: {"email": email, "name": email}
+        auth.id_token.verify_oauth2_token = lambda *a, **k: {
+            "sub": SUBS[email],
+            "email": email,
+            "name": email,
+        }
         try:
             self.assertEqual(
                 client.post("/auth/google", json={"credential": "fake"}).status_code, 200
@@ -68,9 +78,9 @@ class PuttingOwnershipTest(unittest.TestCase):
             auth.id_token.verify_oauth2_token = original
 
     def _record_free(self, client, batch_id, event_id, spoof_owner=None):
-        data = {"kind": "free", "distance": 25, "batch_size": 10, "made": 8}
+        data = {"distance": 25, "batch_size": 10, "made": 8}
         if spoof_owner is not None:
-            data["owner"] = spoof_owner  # should be ignored by the server
+            data["owner_sub"] = spoof_owner  # should be ignored by the server
         return client.post(
             "/commands",
             json={
@@ -145,7 +155,7 @@ class PuttingOwnershipTest(unittest.TestCase):
             users = client.get("/users").json()["users"]
             self.assertEqual(users, [{"sub": "sub-alice", "name": "Alice A", "picture": None}])
 
-            # The owner-scoped reads resolve the owner email to a public identity.
+            # The owner-scoped reads return the owner's public identity (sub + name).
             body = client.get("/batches").json()
             self.assertEqual(body["owner_name"], "Alice A")
             self.assertEqual(body["owner_sub"], "sub-alice")
@@ -246,7 +256,6 @@ class PuttingOwnershipTest(unittest.TestCase):
                         "type": "BatchRecorded",
                         "aggregate_id": batch_id,
                         "data": {
-                            "kind": "test",
                             "test_id": test_id,
                             "distance": distance,
                             "batch_size": 5,
@@ -277,7 +286,6 @@ class PuttingOwnershipTest(unittest.TestCase):
                     "type": "BatchRecorded",
                     "aggregate_id": f"{test_id}-b{distance}",
                     "data": {
-                        "kind": "test",
                         "test_id": test_id,
                         "distance": distance,
                         "batch_size": 5,
@@ -365,7 +373,6 @@ class PuttingOwnershipTest(unittest.TestCase):
                             "type": "BatchRecorded",
                             "aggregate_id": "b1",
                             "data": {
-                                "kind": "test",
                                 "test_id": "t1",
                                 "distance": 20,
                                 "batch_size": 5,
@@ -384,8 +391,8 @@ class PuttingOwnershipTest(unittest.TestCase):
             self.assertEqual(batch["made"], 4)
 
     def test_a_rejected_event_rolls_back_the_whole_batch(self):
-        # The test batch is invalid (6 putts), so the TestStarted before it must
-        # not land either.
+        # The test batch is invalid (made exceeds the batch size), so the
+        # TestStarted before it must not land either.
         with TestClient(self._app) as client:
             self._login_as(client, ALICE)
             res = client.post(
@@ -404,11 +411,10 @@ class PuttingOwnershipTest(unittest.TestCase):
                             "type": "BatchRecorded",
                             "aggregate_id": "b1",
                             "data": {
-                                "kind": "test",
                                 "test_id": "t1",
                                 "distance": 20,
-                                "batch_size": 6,
-                                "made": 4,
+                                "batch_size": 5,
+                                "made": 6,
                             },
                             "created_at": "2026-08-22T09:00:00Z",
                         },

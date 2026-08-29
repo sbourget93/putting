@@ -1,0 +1,61 @@
+.data-filter {
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 0.75rem;
+  padding: 0 0.75rem;
+  border: 1px solid color-mix(in srgb, CanvasText 25%, Canvas);
+  border-radius: 0.6rem;
+  background: Canvas;
+  color: CanvasText;
+  font: inherit;
+}
+
+.data-meta {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* The grid scrolls horizontally on its own; the page body never does. */
+.data-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid color-mix(in srgb, CanvasText 12%, Canvas);
+  border-radius: 0.6rem;
+}
+
+.data-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85rem;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid color-mix(in srgb, CanvasText 10%, Canvas);
+  vertical-align: top;
+  /* Default: size the column to exactly fit its widest value. `width: 1%` + nowrap
+     shrinks each column to its content; the wraparound columns below take the rest. */
+  width: 1%;
+  white-space: nowrap;
+}
+
+.data-table th {
+  position: sticky;
+  top: 0;
+  background: color-mix(in srgb, CanvasText 6%, Canvas);
+  font-weight: 600;
+}
+
+/* Wraparound columns (e.g. events.payload): a wide column whose long value wraps
+   across as many lines as it needs. The grid scrolls horizontally (see .data-scroll)
+   when this pushes the total width past the viewport. */
+.data-table td.wrap,
+.data-table th.wrap {
+  width: auto;
+  min-width: 44rem;
+  max-width: min(92vw, 80rem);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

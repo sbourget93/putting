@@ -31,15 +31,15 @@ class TestsProjectionTest(unittest.TestCase):
             projections.apply_event(conn, event_type, aggregate_id, payload, created_at)
 
     def test_started_records_owner_and_date(self):
-        self._apply("TestStarted", "t1", {"owner": "alice@example.com", "test_date": "2026-08-22"})
+        self._apply("TestStarted", "t1", {"owner_sub": "sub-alice", "test_date": "2026-08-22"})
         with db.read() as conn:
             row = conn.execute("SELECT * FROM tests WHERE test_id = ?", ("t1",)).fetchone()
-        self.assertEqual(row["owner"], "alice@example.com")
+        self.assertEqual(row["owner_sub"], "sub-alice")
         self.assertEqual(row["test_date"], "2026-08-22")
 
     def test_started_requires_a_date(self):
         with self.assertRaises(ValueError):
-            self._apply("TestStarted", "t1", {"owner": "alice@example.com"})
+            self._apply("TestStarted", "t1", {"owner_sub": "sub-alice"})
 
     def test_started_requires_an_owner(self):
         with self.assertRaises(ValueError):

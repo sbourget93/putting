@@ -9,8 +9,7 @@
  * it never touches the admin-only /events log. Must sit inside AuthProvider.
  *
  * Register aggregates here, one descriptor per aggregate, mirroring the backend's
- * projection modules. The demo `foo` aggregate is intentionally not registered in
- * this app; its files remain as a worked example (see aggregates/foo.ts).
+ * projection modules.
  */
 import { useEffect, type ReactNode } from 'react'
 import { useAuth } from '../auth-context'

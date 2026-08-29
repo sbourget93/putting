@@ -15,10 +15,12 @@ services:
       # directory, which compose reads automatically. There is no auth bypass:
       # the backend refuses to start unless GOOGLE_CLIENT_ID is set, so local dev
       # signs in with a real Google account too (localhost is a valid GIS
-      # origin). Put your own email in ADMIN_EMAILS to get admin locally.
+      # origin). Put your own Google `sub` in ADMIN_SUBS to get admin locally.
+      # DEMO_OWNER_SUB (whose data a signed-out visitor sees) has a code default,
+      # so it is only set here to override it.
       # COOKIE_SECURE=0 because local dev is http.
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID in local/.env}
-      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      ADMIN_SUBS: ${ADMIN_SUBS:-}
       SESSION_SECRET: ${SESSION_SECRET:-dev-insecure-secret}
       COOKIE_SECURE: '0'
     volumes:

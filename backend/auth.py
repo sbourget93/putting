@@ -1,16 +1,18 @@
 """Google login, the signed-in write gate, and role authorization.
 
 The browser obtains a Google ID token via Google Identity Services and posts it
-here; we verify it once and store the resulting *identity* (email/name/picture)
-in a signed session cookie (see SessionMiddleware in main.py). The cookie is
-self-contained and signed — there is no server-side session store — so auth is
-stateless in the sense that matters: nothing to look up, nothing to expire on the
-server, and the ~10-year cookie means a device stays signed in effectively
-forever (see main.py for why SESSION_SECRET must outlive a deploy).
+here; we verify it once and store the resulting *identity* (sub/name/picture) in a
+signed session cookie (see SessionMiddleware in main.py). Email is read from the
+verified token only to confirm the account and is never stored — not in the cookie,
+the event log, or any projection. The cookie is self-contained and signed — there
+is no server-side session store — so auth is stateless in the sense that matters:
+nothing to look up, nothing to expire on the server, and the ~10-year cookie means
+a device stays signed in effectively forever (see main.py for why SESSION_SECRET
+must outlive a deploy).
 
 Admin is never baked into the cookie, and never stored as a role either. `is_admin`
-is derived *live* on every request by checking the cookie's email against the
-`ADMIN_EMAILS` allowlist, so adding or removing an admin takes effect immediately
+is derived *live* on every request by checking the cookie's `sub` against the
+`ADMIN_SUBS` allowlist, so adding or removing an admin takes effect immediately
 without forcing anyone to sign in again — that is also how admin is granted and
 revoked, with no SSH or manual command. The stored roles (`public`/`user`/`op`)
 live in the users projection; `stored_role`/`effective_role` resolve them.
@@ -18,8 +20,8 @@ live in the users projection; `stored_role`/`effective_role` resolve them.
 `require_writer` gates the write path (`POST /commands`): any signed-in user whose
 role permits writing (`user`/`op`/`admin`) may record their own data, while one
 downgraded to the read-only `public` role is refused. `require_admin` still exists
-for endpoints only an admin should reach (e.g. the raw `/events` log); reuse
-`is_admin(request)` to gate or filter sensitive reads (see get_foos in main.py).
+for endpoints only an admin should reach (e.g. the raw `/events` log and the
+`/admin/*` reads); reuse `is_admin(request)` to gate or filter sensitive reads.
 
 Auth fails *closed* everywhere: without a `GOOGLE_CLIENT_ID` the app refuses to
 start, so any deployment — and local dev — errors out rather than silently
@@ -45,10 +47,12 @@ if not GOOGLE_CLIENT_ID:
         "Google Identity Services origin)."
     )
 
-# Comma-separated allowlist; membership is what makes an email an admin. Checked
-# live on every request, never cached into a session.
-ADMIN_EMAILS = {
-    e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()
+# Comma-separated allowlist of Google `sub` ids; membership is what makes an account
+# an admin. Checked live on every request, never cached into a session. Subs (not
+# emails) so no email is needed to grant admin — sign in once and read your sub from
+# GET /auth/me to seed this.
+ADMIN_SUBS = {
+    s.strip() for s in os.environ.get("ADMIN_SUBS", "").split(",") if s.strip()
 }
 
 router = APIRouter()
@@ -70,7 +74,7 @@ def current_user(request: Request) -> dict | None:
 def is_admin(request: Request) -> bool:
     """Whether this request is from an admin, decided live from the allowlist."""
     user = current_user(request)
-    return bool(user) and user.get("email", "").lower() in ADMIN_EMAILS
+    return bool(user) and user.get("sub", "") in ADMIN_SUBS
 
 
 def require_admin(request: Request) -> None:
@@ -102,7 +106,7 @@ def stored_role(sub: str | None) -> str:
 
     A signed-in account with no projection row yet (its `UserSignedIn` not recorded)
     is treated as a plain `user`. `admin` is never stored here — it is the live
-    overlay derived from `ADMIN_EMAILS` (see is_admin), never a projection value."""
+    overlay derived from `ADMIN_SUBS` (see is_admin), never a projection value."""
     if not sub:
         return "user"
     # Local import: auth is otherwise free of DB coupling, and db imports nothing
@@ -118,8 +122,8 @@ def stored_role(sub: str | None) -> str:
 
 
 def effective_role(request: Request) -> str:
-    """The caller's role, admin overlay applied: 'admin' if allowlisted, else the
-    stored role ('public'/'user'/'op'), else 'public' when signed out."""
+    """The caller's role, admin overlay applied: 'admin' if their sub is allowlisted,
+    else the stored role ('public'/'user'/'op'), else 'public' when signed out."""
     if is_admin(request):
         return "admin"
     user = current_user(request)
@@ -165,14 +169,13 @@ def auth_google(body: GoogleCredential, request: Request):
         # Invalid signature, wrong audience, or expired token.
         raise HTTPException(status_code=401, detail="Invalid Google credential")
 
-    email = claims.get("email", "")
-    # Store identity only; admin is derived live from ADMIN_EMAILS on each request.
-    # `sub` is Google's stable per-account id; the client uses it as the aggregate
-    # id when it records a UserSignedIn event (see projections/users.py).
+    # Store identity only, and never the email: admin is derived live from ADMIN_SUBS
+    # on each request, and ownership is keyed on `sub`, so email has no use past this
+    # verification. `sub` is Google's stable per-account id; the client uses it as the
+    # aggregate id when it records a UserSignedIn event (see projections/users.py).
     request.session["user"] = {
         "sub": claims.get("sub"),
-        "email": email,
-        "name": claims.get("name") or email,
+        "name": claims.get("name") or "Player",
         "picture": claims.get("picture"),
     }
     return _identity(request)

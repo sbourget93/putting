@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { APP_NAME, IS_TEMPLATE } from '../config'
+import { APP_NAME } from '../config'
 import { useAuth } from '../auth-context'
 import SyncMenu from '../offline/SyncMenu'
 import GoogleSignInButton from './GoogleSignInButton'
@@ -68,16 +68,6 @@ function TopBar() {
           <NavLink to="/compare" className="menu-item" onClick={closeMenu}>
             Compare
           </NavLink>
-          {/* Template-only, and absent from a fork's build entirely. */}
-          {IS_TEMPLATE && (
-            <NavLink
-              to="/template-test"
-              className="menu-item"
-              onClick={closeMenu}
-            >
-              Template Test
-            </NavLink>
-          )}
 
           {/* Admin tools, pinned to the bottom of the nav. Backend re-gates each. */}
           {isAdmin && (
@@ -85,6 +75,9 @@ function TopBar() {
               <span className="menu-section-label">Admin</span>
               <NavLink to="/admin/users" className="menu-item" onClick={closeMenu}>
                 Users
+              </NavLink>
+              <NavLink to="/admin/data" className="menu-item" onClick={closeMenu}>
+                Data
               </NavLink>
             </div>
           )}
@@ -102,9 +95,7 @@ function TopBar() {
                     referrerPolicy="no-referrer"
                   />
                 )}
-                <span className="account-name" title={user.email}>
-                  {user.name}
-                </span>
+                <span className="account-name">{user.name}</span>
               </div>
               <button
                 type="button"

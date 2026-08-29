@@ -1,4 +1,4 @@
-"""Daily Test aggregate: one row per (owner, local calendar day).
+"""Daily Test aggregate: one row per (owner_sub, local calendar day).
 
 A daily test is the container the 5-putt test batches hang off of. It carries no
 state that isn't derivable from its batches. Completion and per-distance results
@@ -8,9 +8,9 @@ to give those batches a stable id to point at and to record which local day it
 belongs to. The client supplies `test_date`, since only the device knows its
 timezone, and the test resets at local midnight.
 
-`owner` is stamped server-side from the session (see main.post_commands), so the
-client can't forge it. Queries filter by owner so each user sees only their own
-tests (see get_tests in main.py).
+`owner_sub` is the Google `sub` of the authoring account, stamped server-side from
+the session (see routers/commands.py), so the client can't forge it. Queries filter
+by `owner_sub` so each user sees only their own tests (see get_tests in putting.py).
 """
 
 import sqlite3
@@ -26,7 +26,7 @@ def _required(payload: dict, key: str, event_type: str) -> str:
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS tests (
     test_id    TEXT PRIMARY KEY,
-    owner      TEXT NOT NULL,
+    owner_sub  TEXT NOT NULL,
     test_date  TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT,
@@ -40,14 +40,14 @@ TABLES = ("tests",)
 def _started(
     conn: sqlite3.Connection, aggregate_id: str, payload: dict, created_at: str
 ) -> None:
-    owner = _required(payload, "owner", "TestStarted")
+    owner_sub = _required(payload, "owner_sub", "TestStarted")
     test_date = _required(payload, "test_date", "TestStarted")
     # INSERT OR REPLACE keeps replay idempotent if a start is ever re-applied.
     conn.execute(
         "INSERT OR REPLACE INTO tests "
-        "(test_id, owner, test_date, created_at, updated_at, deleted_at) "
+        "(test_id, owner_sub, test_date, created_at, updated_at, deleted_at) "
         "VALUES (?, ?, ?, ?, NULL, NULL)",
-        (aggregate_id, owner, test_date, created_at),
+        (aggregate_id, owner_sub, test_date, created_at),
     )
 
 

@@ -27,12 +27,12 @@ import db  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 
-def _foo_created_event():
+def _batch_event():
     return {
         "event_id": "e1",
-        "type": "FooCreated",
-        "aggregate_id": "f1",
-        "data": {"public_value": "hello", "private_value": "secret"},
+        "type": "BatchRecorded",
+        "aggregate_id": "b1",
+        "data": {"distance": 25, "batch_size": 10, "made": 8},
         "created_at": "2026-08-20T00:00:00Z",
     }
 
@@ -45,8 +45,8 @@ class CommandAuthTest(unittest.TestCase):
         db.DB_PATH = self._tmp.name
         db._conn = None
 
-        self._orig_admins = auth.ADMIN_EMAILS
-        auth.ADMIN_EMAILS = {"admin@example.com"}
+        self._orig_admins = auth.ADMIN_SUBS
+        auth.ADMIN_SUBS = {"sub-admin"}
 
         # Force S3 off for this test regardless of other suites: test_s3_sync sets
         # S3_BUCKET at import, and discovery imports every module before any run,
@@ -67,16 +67,22 @@ class CommandAuthTest(unittest.TestCase):
     def tearDown(self):
         import s3_sync
 
-        auth.ADMIN_EMAILS = self._orig_admins
+        auth.ADMIN_SUBS = self._orig_admins
         s3_sync.BUCKET = self._orig_bucket
         db._conn = None
         os.unlink(self._tmp.name)
 
-    def _login_as(self, client, email):
+    def _login_as(self, client, sub):
         # Stub Google verification, then hit the real /auth/google so the client
-        # picks up the session cookie the rest of the flow relies on.
+        # picks up the session cookie the rest of the flow relies on. Identity is
+        # keyed on `sub`; the verified token still carries an email, but auth.py
+        # never stores it.
         original = auth.id_token.verify_oauth2_token
-        auth.id_token.verify_oauth2_token = lambda *a, **k: {"email": email, "name": email}
+        auth.id_token.verify_oauth2_token = lambda *a, **k: {
+            "sub": sub,
+            "email": f"{sub}@example.com",
+            "name": sub,
+        }
         try:
             res = client.post("/auth/google", json={"credential": "fake-token"})
             self.assertEqual(res.status_code, 200)
@@ -85,64 +91,66 @@ class CommandAuthTest(unittest.TestCase):
 
     def test_anonymous_caller_is_rejected_and_writes_nothing(self):
         with TestClient(self._app) as client:
-            res = client.post("/commands", json={"events": [_foo_created_event()]})
+            res = client.post("/commands", json={"events": [_batch_event()]})
             self.assertEqual(res.status_code, 403)
-            self.assertEqual(client.get("/foos").json()["version"], 0)
+            # Nothing committed: signing in as the would-be writer, they own no batches.
+            self._login_as(client, "sub-nobody")
+            self.assertEqual(client.get("/batches").json()["batches"], [])
 
     def test_signed_in_non_admin_can_write(self):
         # The multi-user swap: being signed in — not being an admin — is what the
         # write path requires now. A plain user's batch commits and projects.
         with TestClient(self._app) as client:
-            self._login_as(client, "nobody@example.com")
-            res = client.post("/commands", json={"events": [_foo_created_event()]})
+            self._login_as(client, "sub-nobody")
+            res = client.post("/commands", json={"events": [_batch_event()]})
             self.assertEqual(res.status_code, 200)
             self.assertEqual(res.json()["status"], "ok")
-            foos = client.get("/foos").json()["foos"]
-            self.assertEqual([f["public_value"] for f in foos], ["hello"])
-            # A non-admin still never sees the private field.
-            self.assertNotIn("private_value", foos[0])
+            batches = client.get("/batches").json()["batches"]
+            self.assertEqual([b["made"] for b in batches], [8])
 
     def test_events_log_requires_admin(self):
-        # The raw event log carries fields /foos hides from non-admins (e.g.
-        # private_value), so it is admin-gated: an anonymous caller is rejected.
+        # The raw event log carries every event's full payload, so it is admin-gated:
+        # an anonymous caller is rejected.
         with TestClient(self._app) as client:
             res = client.get("/events")
             self.assertEqual(res.status_code, 403)
 
     def test_non_admin_cannot_read_events_log(self):
         with TestClient(self._app) as client:
-            self._login_as(client, "nobody@example.com")
+            self._login_as(client, "sub-nobody")
             res = client.get("/events")
             self.assertEqual(res.status_code, 403)
 
     def test_admin_reads_full_event_payloads(self):
-        # The admin who authored the write can sync the log back with the private
+        # The admin who authored the write can sync the log back with the full
         # payload intact — this is what the offline client store folds.
         with TestClient(self._app) as client:
-            self._login_as(client, "admin@example.com")
+            self._login_as(client, "sub-admin")
             self.assertEqual(
-                client.post("/commands", json={"events": [_foo_created_event()]}).status_code,
+                client.post("/commands", json={"events": [_batch_event()]}).status_code,
                 200,
             )
             res = client.get("/events")
             self.assertEqual(res.status_code, 200)
             events = res.json()["events"]
             self.assertEqual(len(events), 1)
-            self.assertEqual(events[0]["type"], "FooCreated")
-            self.assertEqual(events[0]["data"]["private_value"], "secret")
+            self.assertEqual(events[0]["type"], "BatchRecorded")
+            self.assertEqual(events[0]["data"]["made"], 8)
+            # The server stamps the authoring owner_sub into the persisted payload.
+            self.assertEqual(events[0]["data"]["owner_sub"], "sub-admin")
 
     def test_admin_command_commits_and_projects(self):
         with TestClient(self._app) as client:
-            self._login_as(client, "admin@example.com")
-            res = client.post("/commands", json={"events": [_foo_created_event()]})
+            self._login_as(client, "sub-admin")
+            res = client.post("/commands", json={"events": [_batch_event()]})
             self.assertEqual(res.status_code, 200)
             self.assertEqual(res.json()["status"], "ok")
 
-            # The write landed in the projection, and the admin sees private_value.
-            foos = client.get("/foos").json()["foos"]
-            self.assertEqual(len(foos), 1)
-            self.assertEqual(foos[0]["public_value"], "hello")
-            self.assertEqual(foos[0]["private_value"], "secret")
+            # The write landed in the projection.
+            batches = client.get("/batches").json()["batches"]
+            self.assertEqual(len(batches), 1)
+            self.assertEqual(batches[0]["made"], 8)
+            self.assertEqual(batches[0]["distance"], 25)
 
 
 if __name__ == "__main__":

@@ -15,7 +15,8 @@ It's an event-sourced, CQRS backend that validates user commands, projects them 
 
 | File | Purpose |
 | --- | --- |
-| `main.py` | FastAPI entry point. Registers the session-cookie middleware and the auth router, defines the CQRS endpoints (`POST /commands`, `POST /users/{sub}/role`, `GET /events`, `GET /foos`), and the `lifespan` that restores from S3 + replays on startup and runs the background sync. |
+| `main.py` | FastAPI app assembly: registers the session-cookie middleware, folds in the auth router and every domain router (`routers/`), and defines the `lifespan` that restores from S3 + replays on startup and runs the background sync. |
+| `routers/` | API endpoints, one module per domain (mirroring `projections/`): `commands.py` (`POST /commands`), `users.py` (`GET /users`, role management), `putting.py` (`GET /batches`/`/tests`/`/daily`/`/stats`/`/leaderboard`), `admin.py` (`GET /events`, `/admin/tables*`; admin-gated at the router). Access level is a route/router dependency, not the file layout. |
 | `auth.py` | Google token verification, the write gate and role authorization (`require_writer`, `require_admin`, `is_admin`, `effective_role`), and the `/auth/*` router. Fails closed without `GOOGLE_CLIENT_ID`. |
 | `db.py` | SQLite connection, schema defintions (append-only `events` store + projections + `sync_state` cursors), and `replay()` (rebuilds projections from the event log when they're empty). On startup, if the `events` table is empty it first restores the log from S3 (`s3_sync`) before replaying. Do not document column meanings with comments, this is already documented elsewhere in the repo. |
 | `s3_sync.py` | Best-effort S3 backup of the event log. A background thread uploads each new event as an immutable object keyed by seq, walking a contiguous `uploaded_through` cursor. Every 1000-event block is compacted into one `agg-<start>-<end>.json` and the singles deleted. `restore_from_s3()` rebuilds the log on a fresh instance. |

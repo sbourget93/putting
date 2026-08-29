@@ -5,7 +5,7 @@
  * years, so a signed-in device stays signed in effectively forever: on load we
  * call `/auth/me`, and if the cookie is still valid the user comes back without
  * touching Google again. Admin status is whatever the backend reports live from
- * its email allowlist — never decided here.
+ * its `sub` allowlist — never decided here.
  *
  * Sign-in itself (Google Identity Services) lives in GoogleSignInButton; this
  * provider just exposes `signInWithCredential`, which trades a Google ID token

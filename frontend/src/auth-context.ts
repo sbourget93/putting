@@ -9,9 +9,9 @@
 import { createContext, useContext } from 'react'
 
 export type User = {
-  /** Google's stable per-account id; used as the aggregate id for UserSignedIn. */
+  /** Google's stable per-account id; used as the aggregate id for UserSignedIn and
+   *  as the ownership key. No email is carried — the backend never returns one. */
   sub: string
-  email: string
   name: string
   picture: string | null
 }

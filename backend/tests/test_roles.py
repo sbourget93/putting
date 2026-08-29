@@ -3,7 +3,7 @@
 Drives the ASGI app with FastAPI's TestClient (Google verification stubbed, S3
 off, throwaway DB) to prove the multi-user role model end to end:
   - a brand-new signed-in user defaults to `user` and may write,
-  - admin is the live ADMIN_EMAILS overlay, never a stored role,
+  - admin is the live ADMIN_SUBS overlay, never a stored role,
   - an admin can promote a user to `op`, and an `op` can then change roles,
   - a promotion survives the user signing in again (role is not reset),
   - downgrading a user to `public` leaves them signed in but read-only,
@@ -41,8 +41,8 @@ class RolesTest(unittest.TestCase):
         db.DB_PATH = self._tmp.name
         db._conn = None
 
-        self._orig_admins = auth.ADMIN_EMAILS
-        auth.ADMIN_EMAILS = {ADMIN}  # ALICE/BOB are ordinary users
+        self._orig_admins = auth.ADMIN_SUBS
+        auth.ADMIN_SUBS = {SUBS[ADMIN]}  # ALICE/BOB are ordinary users
 
         import s3_sync  # noqa: E402
 
@@ -50,18 +50,20 @@ class RolesTest(unittest.TestCase):
         s3_sync.BUCKET = ""
 
         import main  # noqa: E402
+        from routers import putting  # noqa: E402
 
-        self._main = main
-        self._orig_demo = main.DEMO_OWNER_EMAIL
-        main.DEMO_OWNER_EMAIL = ADMIN
+        # DEMO_OWNER_SUB lives on the putting router; patch it there.
+        self._putting = putting
+        self._orig_demo = putting.DEMO_OWNER_SUB
+        putting.DEMO_OWNER_SUB = SUBS[ADMIN]
         self._app = main.app
 
     def tearDown(self):
         import s3_sync
 
-        auth.ADMIN_EMAILS = self._orig_admins
+        auth.ADMIN_SUBS = self._orig_admins
         s3_sync.BUCKET = self._orig_bucket
-        self._main.DEMO_OWNER_EMAIL = self._orig_demo
+        self._putting.DEMO_OWNER_SUB = self._orig_demo
         db._conn = None
         os.unlink(self._tmp.name)
 
@@ -103,7 +105,7 @@ class RolesTest(unittest.TestCase):
                         "event_id": event_id,
                         "type": "BatchRecorded",
                         "aggregate_id": batch_id,
-                        "data": {"kind": "free", "distance": 25, "batch_size": 10, "made": 8},
+                        "data": {"distance": 25, "batch_size": 10, "made": 8},
                         "created_at": "2026-08-22T00:00:00Z",
                     }
                 ]

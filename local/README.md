@@ -4,7 +4,8 @@
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `GOOGLE_CLIENT_ID` | Yes | Google OAuth client id; the backend won't boot without it. |
-| `ADMIN_EMAILS` | No | Comma-separated admin allowlist; sign in with a listed email to get admin locally. |
+| `ADMIN_SUBS` | No | Comma-separated admin allowlist of Google `sub` ids; sign in with a listed account to get admin locally. |
+| `DEMO_OWNER_SUB` | No | Google `sub` whose data signed-out visitors see; overrides the code default. |
 
 ## Commands
 - **Start app**: `./run_dev_env.sh`

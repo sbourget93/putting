@@ -7,6 +7,6 @@
 | `op` | In addition to the features of the user role, ops can also freely change the roles of other users. |
 
 ## Admins
-Admins have the same permissions as op. Admin is not an assignable role stored in the projections. A user is treated as admin whenever their email is in `ADMIN_EMAILS`, evaluated on every request.
+Admins have the same permissions as op. Admin is not an assignable role stored in the projections. A user is treated as admin whenever their Google `sub` is in `ADMIN_SUBS`, evaluated on every request.
 
-Admin permissions as a result of modifying `ADMIN_EMAILS` take effect after the next server restart.
+Admin permissions as a result of modifying `ADMIN_SUBS` take effect after the next server restart.

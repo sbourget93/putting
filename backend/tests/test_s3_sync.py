@@ -92,7 +92,7 @@ class S3SyncTest(unittest.TestCase):
                 conn.execute(
                     "INSERT INTO events (event_id, event_type, aggregate_id, payload, created_at) "
                     "VALUES (?, ?, ?, ?, ?)",
-                    (f"evt-{i}", "FooCreated", f"agg-{i}", json.dumps({"n": i}), "2026-07-28T00:00:00Z"),
+                    (f"evt-{i}", "TestEvent", f"agg-{i}", json.dumps({"n": i}), "2026-07-28T00:00:00Z"),
                 )
 
     def _keys(self):

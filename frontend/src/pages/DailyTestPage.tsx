@@ -89,7 +89,6 @@ function DailyTestPage() {
     }
     events.push(
       newEvent('BatchRecorded', crypto.randomUUID(), {
-        kind: 'test',
         test_id: id,
         distance: current,
         batch_size: TEST_PUTTS,

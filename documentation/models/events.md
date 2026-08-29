@@ -10,7 +10,7 @@ This table is backed up to S3 (and frequently compacted) so that it can be resto
 | ----- | ----------- |
 | `seq` | Server-assigned sequence number. Source of truth for last-write-wins. |
 | `event_id` | Client-generated unique id for the event. |
-| `event_type` | Unique descriptive name of the event, e.g. `FooPublicValueChanged`. |
+| `event_type` | Unique descriptive name of the event, e.g. `BatchRecorded`. |
 | `aggregate_id` | The id of the object this event applies to. |
 | `payload` | JSON object holding the event's data. |
 | `created_at` | When the client composed the event (not when the server received it). |

@@ -1,7 +1,7 @@
 # Test
 
 A **daily test**: the container that a day's 5-putt test batches hang off of.
-There is one row per `(owner, local calendar day)`.
+There is one row per `(owner_sub, local calendar day)`.
 
 A test carries no state that isn't derivable from its batches.
 Completion and per-distance results are all computed from the [batches](./batches.md) that reference it.
@@ -19,7 +19,7 @@ The first test putt of a day emits `TestStarted` together with its `BatchRecorde
 | Field | Description |
 | ----- | ----------- |
 | `test_id` | Unique id of the daily test (client-generated). |
-| `owner` | Email of the user the test belongs to. Stamped server-side from the session; never trusted from the client. |
+| `owner_sub` | Google `sub` of the user the test belongs to. Stamped server-side from the session; never trusted from the client. |
 | `test_date` | The local calendar day (`YYYY-MM-DD`) this test covers. |
 
 ## Relationships

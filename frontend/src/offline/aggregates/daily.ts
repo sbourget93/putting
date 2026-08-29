@@ -24,7 +24,6 @@ export interface DailyPayload {
 export function toBatch(raw: Batch): Batch {
   return {
     batch_id: raw.batch_id,
-    kind: raw.kind === 'test' ? 'test' : 'free',
     test_id: raw.test_id ?? null,
     distance: raw.distance,
     batch_size: raw.batch_size,

@@ -24,17 +24,12 @@ export interface AppUser {
 /** A putt batch as the server projection returns it (see backend/projections/batches.py). */
 export interface Batch {
   batch_id: string
-  kind: 'free' | 'test'
   test_id: string | null
   distance: number
   batch_size: number
   made: number
   created_at: string
 }
-
-// Distance range still allowed when editing legacy free batches in History.
-export const FREE_MIN = 10
-export const FREE_MAX = 60
 
 // The daily test: 5 putts from every distance in [TEST_MIN, TEST_MAX] inclusive.
 export const TEST_MIN = 12
@@ -66,7 +61,7 @@ export function findTest(tests: Test[], day: string = localDay()): Test | undefi
 /** The batches belonging to a given daily test. */
 export function testBatches(batches: Batch[], testId: string | null): Batch[] {
   if (!testId) return []
-  return batches.filter((b) => b.kind === 'test' && b.test_id === testId)
+  return batches.filter((b) => b.test_id === testId)
 }
 
 /**
@@ -203,8 +198,8 @@ export interface GlobalStat {
 }
 
 /**
- * Make percentage per distance across all batches, free and test combined,
- * sorted by distance. This is what the stats line chart plots.
+ * Make percentage per distance across the given batches, sorted by distance.
+ * This is what the stats line chart plots.
  */
 export function statsByDistance(batches: Batch[]): DistanceStat[] {
   const by = new Map<number, { made: number; attempts: number }>()
