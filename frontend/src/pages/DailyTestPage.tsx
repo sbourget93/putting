@@ -21,7 +21,6 @@ import StatsChartPanel from '../components/StatsChartPanel'
 import PuttEditModal from '../components/PuttEditModal'
 import PuttDeleteModal from '../components/PuttDeleteModal'
 import {
-  TEST_DISTANCES,
   TEST_PUTTS,
   localDay,
   nextTestDistance,
