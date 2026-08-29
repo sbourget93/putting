@@ -47,7 +47,6 @@ function DailyTestPage() {
     [todayBatches, testId],
   )
   const todays = useMemo(() => testBatches(todayBatches, testId), [todayBatches, testId])
-  const doneCount = TEST_DISTANCES.length - remaining.length
 
   // Lifetime baseline arrives pre-aggregated by distance (excluding today), so the
   // summary and the chart's grey line compare today against history, not itself.
@@ -131,7 +130,9 @@ function DailyTestPage() {
         {complete ? (
           <span className="progress-pill complete-pill">Complete</span>
         ) : (
-          <span className="progress-pill">{doneCount} / {TEST_DISTANCES.length}</span>
+          <span className="progress-pill">
+            {remaining.length} {remaining.length === 1 ? 'batch' : 'batches'} remaining
+          </span>
         )}
       </div>
 

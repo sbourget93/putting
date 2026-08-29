@@ -15,3 +15,4 @@ different pages/url so that refreshing doesnt break things and you can share lin
 admin page to see all data in all tables
 expand multiple graphs
 app not starting when instance down
+make graphs consistently colored

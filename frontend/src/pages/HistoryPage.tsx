@@ -12,6 +12,7 @@
  */
 import { useMemo, useRef, useState } from 'react'
 import { useUserHistory, useUsers } from '../lib/useUserHistory'
+import { useGlobalStats } from '../lib/useGlobalStats'
 import StatsChartPanel from '../components/StatsChartPanel'
 import PercentTrendChart from '../components/PercentTrendChart'
 import {
@@ -75,6 +76,7 @@ function HistoryPage() {
   // Whose history is on screen, fetched online on demand: the picker's choice, or
   // the default owner (your own if admin, else the demo owner) when none is picked.
   const { tests, batches, ownerSub, ownerName, loading, error } = useUserHistory(selectedSub)
+  const { global: globalStats } = useGlobalStats()
   const viewingSub = selectedSub ?? ownerSub
 
   const entries = useMemo(() => buildEntries(tests, batches), [tests, batches])
@@ -195,8 +197,20 @@ function HistoryPage() {
         <>
         {trend.length > 0 && (
           <div className="panel chart-panel history-trend">
-            <h2 className="section-title">C1X putting percentage</h2>
+            <h2 className="section-title">Putting percentage over time</h2>
             <PercentTrendChart points={trend} />
+          </div>
+        )}
+        {baselineStats.length > 0 && (
+          <div className="history-by-distance">
+            <StatsChartPanel
+              title="Putting percentage by distance"
+              batches={completeEntries.flatMap((e) => e.batches)}
+              baselineStats={globalStats}
+              emptyNote="No completed tests yet."
+              seriesLabel={viewingName || 'This player'}
+              baselineLabel="All players"
+            />
           </div>
         )}
         <ul className="history-list">
