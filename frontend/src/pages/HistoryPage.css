@@ -178,11 +178,9 @@
   margin-bottom: 1rem;
 }
 
-/* "Compare with" selector, pinned under the chart legend inside the panel. */
+/* "Compare with" selector, sitting under the header (player search + all-time %). */
 .compare-with {
-  margin-top: 0.9rem;
-  padding-top: 0.8rem;
-  border-top: 1px solid color-mix(in srgb, CanvasText 12%, Canvas);
+  margin-bottom: 0.9rem;
 }
 
 .history-list {

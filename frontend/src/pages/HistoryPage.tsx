@@ -238,6 +238,18 @@ function HistoryPage() {
         </div>
       </div>
 
+      {sortedUsers.length > 0 && (
+        <div className="compare-with">
+          <PlayerCombobox
+            users={users}
+            value={compareSub}
+            onChange={setCompareSub}
+            exclude={viewingSub}
+            label="Compare with"
+          />
+        </div>
+      )}
+
       {error && <p className="error" role="alert">{error}</p>}
 
       {loading ? (
@@ -267,17 +279,6 @@ function HistoryPage() {
                 compareSub
                   ? { label: compareName, color: seriesColor(1), stats: compareStats }
                   : undefined
-              }
-              footer={
-                <div className="compare-with">
-                  <PlayerCombobox
-                    users={users}
-                    value={compareSub}
-                    onChange={setCompareSub}
-                    exclude={viewingSub}
-                    label="Compare with"
-                  />
-                </div>
               }
             />
           </div>
