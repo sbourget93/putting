@@ -1,14 +1,88 @@
-/* Whose-history picker: a plain labelled select, native on mobile. */
-.history-picker {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0 0 0.9rem;
+/* Profile header: the "Player Profile for" title with the player search on the
+   same line, then the player's all-time percentage underneath. */
+/* Override .page-head's flex row: we want the title row to span the full width,
+   not shrink to its content, so the search + stat card fill the screen. */
+.page-head.profile-head {
+  display: block;
+  margin-bottom: 0.9rem;
 }
 
-.history-picker-label {
-  font-size: 0.85rem;
+.profile-title-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+/* Search and the all-time card together span the full width, roughly 60/40. */
+.profile-title-row .history-search {
+  flex: 45 1 0;
+}
+
+.profile-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  font-size: 1.1rem;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The player's all-time make % across every complete test, in a small card to
+   the right of the search, framed like the other panels on the page. */
+.profile-overall {
+  flex: 55 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, CanvasText 3%, Canvas);
+}
+
+.profile-overall-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.1rem 0.35rem;
+}
+
+.profile-overall-value,
+.profile-overall-vs-pct {
+  font-size: 1.3rem;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.profile-overall-value {
+  color: var(--brand);
+}
+
+/* "vs 55%": the "vs" is small and muted like the label, only the number carries
+   the comparison color (grey all-players or the compare player's orange). */
+.profile-overall-vs {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.profile-overall-vs-word {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: color-mix(in srgb, CanvasText 60%, Canvas);
+}
+
+.profile-overall-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
   color: color-mix(in srgb, CanvasText 60%, Canvas);
 }
 
@@ -94,10 +168,18 @@
 
 .history-trend {
   margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
 }
 
 .history-by-distance {
   margin-bottom: 1rem;
+}
+
+/* "Compare with" selector, pinned under the chart legend inside the panel. */
+.compare-with {
+  margin-top: 0.9rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid color-mix(in srgb, CanvasText 12%, Canvas);
 }
 
 .history-list {
@@ -195,16 +277,8 @@
   }
 }
 
-/* The expanded graph sits flush inside the entry: strip the chart panel's own
-   frame so it doesn't read as a box-in-a-box. */
+/* The expanded graph sits inside the entry as a standard chart panel (gray
+   background and frame), so it matches the graphs elsewhere in the app. */
 .entry-detail {
-  padding: 0.2rem 0.6rem 0.6rem;
-  border-top: 1px solid color-mix(in srgb, CanvasText 8%, Canvas);
-}
-
-.entry-detail .panel {
-  border: 0;
-  border-radius: 0;
-  padding: 0.4rem 0;
-  background: transparent;
+  padding: 0.6rem;
 }

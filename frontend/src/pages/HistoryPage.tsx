@@ -1,19 +1,23 @@
 /**
- * History — one entry per daily test, newest first.
+ * Player Profile — a player's all-time putting percentage, their trend and
+ * by-distance graphs, and one entry per daily test, newest first.
  *
  * Each entry is a row: the test's date and that day's overall make percentage.
  * Tapping a row expands it to the same make-%-by-distance graph the completed
- * daily-putts summary shows — that day's line against the player's all-time line.
+ * daily-putts summary shows: that day's line against the player's all-time line.
  *
- * A picker at the top chooses whose history to view, defaulting to the viewer's
- * own (or the demo owner's). All of it is fetched online on demand (see
- * useUserHistory) — History is not cached on the device, only Daily Putts is.
+ * A search at the top of the header chooses whose profile to view, defaulting to
+ * the viewer's own (or the demo owner's). All of it is fetched online on demand
+ * (see useUserHistory), never cached on the device, only Daily Putts is.
  * Editing was removed for now.
  */
 import { useMemo, useRef, useState } from 'react'
 import { useUserHistory, useUsers } from '../lib/useUserHistory'
 import { useGlobalStats } from '../lib/useGlobalStats'
+import { useLeaderboard } from '../lib/useLeaderboard'
+import { seriesColor } from '../lib/seriesColors'
 import StatsChartPanel from '../components/StatsChartPanel'
+import PlayerCombobox from '../components/PlayerCombobox'
 import PercentTrendChart from '../components/PercentTrendChart'
 import {
   isTestComplete,
@@ -68,6 +72,7 @@ function buildEntries(tests: Test[], batches: Batch[]): DayEntry[] {
 function HistoryPage() {
   const { users } = useUsers()
   const [selectedSub, setSelectedSub] = useState<string | null>(null)
+  const [compareSub, setCompareSub] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
@@ -78,6 +83,30 @@ function HistoryPage() {
   const { tests, batches, ownerSub, ownerName, loading, error } = useUserHistory(selectedSub)
   const { global: globalStats } = useGlobalStats()
   const viewingSub = selectedSub ?? ownerSub
+
+  // Every player's all-time by-distance breakdown, for the optional "compare with"
+  // line on the by-distance chart. One read carries all players, so switching the
+  // compare player needs no extra request.
+  const { entries: allTimeEntries } = useLeaderboard()
+  const compareEntry = compareSub ? allTimeEntries.find((e) => e.sub === compareSub) : undefined
+  const compareStats = compareEntry?.stats ?? []
+  const compareName = users.find((u) => u.sub === compareSub)?.name ?? ''
+
+  // The second number in the headline card: the compare player's all-time % when
+  // one is chosen, else the all-players average (the mean of the grey line's per-
+  // distance points, which carry no attempts of their own). Its color matches the
+  // by-distance legend line it stands for, so the card reads as the same pairing.
+  const COMPARE_ORANGE = seriesColor(1)
+  const ALL_PLAYERS_GREY = 'color-mix(in srgb, CanvasText 30%, Canvas)'
+  const comparisonColor = compareSub ? COMPARE_ORANGE : ALL_PLAYERS_GREY
+  const comparisonPct = useMemo(() => {
+    if (compareSub) {
+      return compareEntry ? Math.round(compareEntry.overall_pct) : null
+    }
+    return globalStats.length
+      ? Math.round(globalStats.reduce((sum, g) => sum + g.pct, 0) / globalStats.length)
+      : null
+  }, [compareSub, compareEntry, globalStats])
 
   const entries = useMemo(() => buildEntries(tests, batches), [tests, batches])
 
@@ -104,6 +133,13 @@ function HistoryPage() {
     [completeEntries],
   )
 
+  // The player's all-time make % across every complete test: their headline
+  // number, shown under the title. Null until there's a complete test to count.
+  const allTimePct = useMemo(() => {
+    const p = overallPct(completeEntries.flatMap((e) => e.batches))
+    return p == null ? null : Math.round(p)
+  }, [completeEntries])
+
   function toggle(key: string) {
     setExpanded((prev) => {
       const next = new Set(prev)
@@ -129,63 +165,79 @@ function HistoryPage() {
 
   return (
     <section className="page history">
-      <div className="page-head">
-        <h1>History</h1>
-      </div>
-
-      {sortedUsers.length > 0 && (
-        <div className="history-picker">
-          <span className="history-picker-label">Viewing</span>
-          <div className="history-search">
-            <input
-              ref={searchInput}
-              type="text"
-              className="history-search-input"
-              value={searchFocused ? search : viewingName}
-              placeholder="Search players…"
-              onChange={(e) => setSearch(e.target.value)}
-              onFocus={() => {
-                setSearchFocused(true)
-                setSearch('')
-              }}
-              onBlur={() => setSearchFocused(false)}
-              aria-label="Search players to view"
-            />
-            {searchFocused && suggestions.length > 0 && (
-              <ul className="history-search-results">
-                {suggestions.map((u) => (
-                  <li key={u.sub}>
-                    {/* onMouseDown (not onClick) so the pick lands before the
-                        input blurs and closes the list. */}
-                    <button
-                      type="button"
-                      onMouseDown={(e) => {
-                        // preventDefault keeps the click from blurring mid-pick;
-                        // we then blur explicitly so the field is released and a
-                        // later click reopens the search cleanly.
-                        e.preventDefault()
-                        setSelectedSub(u.sub)
-                        setSearch('')
-                        setSearchFocused(false)
-                        searchInput.current?.blur()
-                      }}
-                    >
-                      {u.picture && (
-                        <img className="result-avatar" src={u.picture} alt="" referrerPolicy="no-referrer" />
-                      )}
-                      <span className="result-name">{u.name}</span>
-                      {u.sub === viewingSub && <span className="result-current" aria-hidden="true">✓</span>}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {searchFocused && q.length > 0 && suggestions.length === 0 && (
-              <p className="muted history-search-none">No matching players.</p>
-            )}
-          </div>
+      <div className="page-head profile-head">
+        <div className="profile-title-row">
+          {sortedUsers.length > 0 ? (
+            <div className="history-search">
+              <input
+                ref={searchInput}
+                type="text"
+                className="history-search-input"
+                value={searchFocused ? search : viewingName}
+                placeholder="Search players…"
+                onChange={(e) => setSearch(e.target.value)}
+                onFocus={() => {
+                  setSearchFocused(true)
+                  setSearch('')
+                }}
+                onBlur={() => setSearchFocused(false)}
+                aria-label="Search players to view"
+              />
+              {searchFocused && suggestions.length > 0 && (
+                <ul className="history-search-results">
+                  {suggestions.map((u) => (
+                    <li key={u.sub}>
+                      {/* onMouseDown (not onClick) so the pick lands before the
+                          input blurs and closes the list. */}
+                      <button
+                        type="button"
+                        onMouseDown={(e) => {
+                          // preventDefault keeps the click from blurring mid-pick;
+                          // we then blur explicitly so the field is released and a
+                          // later click reopens the search cleanly.
+                          e.preventDefault()
+                          setSelectedSub(u.sub)
+                          setCompareSub(null)
+                          setSearch('')
+                          setSearchFocused(false)
+                          searchInput.current?.blur()
+                        }}
+                      >
+                        {u.picture && (
+                          <img className="result-avatar" src={u.picture} alt="" referrerPolicy="no-referrer" />
+                        )}
+                        <span className="result-name">{u.name}</span>
+                        {u.sub === viewingSub && <span className="result-current" aria-hidden="true">✓</span>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {searchFocused && q.length > 0 && suggestions.length === 0 && (
+                <p className="muted history-search-none">No matching players.</p>
+              )}
+            </div>
+          ) : (
+            <span className="profile-name">{viewingName || '—'}</span>
+          )}
+          {allTimePct != null && (
+            <div className="profile-overall">
+              <span className="profile-overall-inner">
+                <span className="profile-overall-value">{allTimePct}%</span>
+                {comparisonPct != null && (
+                  <span className="profile-overall-vs">
+                    <span className="profile-overall-vs-word">vs</span>
+                    <span className="profile-overall-vs-pct" style={{ color: comparisonColor }}>
+                      {comparisonPct}%
+                    </span>
+                  </span>
+                )}
+                <span className="profile-overall-label">all-time putting %</span>
+              </span>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {error && <p className="error" role="alert">{error}</p>}
 
@@ -206,10 +258,28 @@ function HistoryPage() {
             <StatsChartPanel
               title="Putting percentage by distance"
               batches={completeEntries.flatMap((e) => e.batches)}
-              baselineStats={globalStats}
+              // No compare player: grey all-players all-time baseline. With one
+              // chosen, drop that line and show the compare player (orange) instead.
+              baselineStats={compareSub ? undefined : globalStats}
               emptyNote="No completed tests yet."
               seriesLabel={viewingName || 'This player'}
               baselineLabel="All players"
+              compare={
+                compareSub
+                  ? { label: compareName, color: seriesColor(1), stats: compareStats }
+                  : undefined
+              }
+              footer={
+                <div className="compare-with">
+                  <PlayerCombobox
+                    users={users}
+                    value={compareSub}
+                    onChange={setCompareSub}
+                    exclude={viewingSub}
+                    label="Compare with"
+                  />
+                </div>
+              }
             />
           </div>
         )}

@@ -81,7 +81,9 @@ function LeaderboardPage() {
 
                 {isOpen && (
                   <div className="entry-detail">
-                    <PuttingChart series={series} />
+                    <div className="panel chart-panel">
+                      <PuttingChart series={series} />
+                    </div>
                   </div>
                 )}
               </li>

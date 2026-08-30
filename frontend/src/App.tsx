@@ -3,7 +3,6 @@ import Layout from './components/Layout'
 import DailyTestPage from './pages/DailyTestPage'
 import HistoryPage from './pages/HistoryPage'
 import LeaderboardPage from './pages/LeaderboardPage'
-import ComparePage from './pages/ComparePage'
 import UsersPage from './pages/UsersPage'
 import DataPage from './pages/DataPage'
 
@@ -14,9 +13,8 @@ function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<DailyTestPage />} />
-        <Route path="history" element={<HistoryPage />} />
+        <Route path="profile" element={<HistoryPage />} />
         <Route path="leaderboard" element={<LeaderboardPage />} />
-        <Route path="compare" element={<ComparePage />} />
         {/* Admin-only pages; each guards its own content, backend re-gates. */}
         <Route path="admin/users" element={<UsersPage />} />
         <Route path="admin/data" element={<DataPage />} />

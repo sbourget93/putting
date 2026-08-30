@@ -59,14 +59,11 @@ function TopBar() {
           <NavLink to="/" end className="menu-item" onClick={closeMenu}>
             Daily Putts
           </NavLink>
-          <NavLink to="/history" className="menu-item" onClick={closeMenu}>
-            History
+          <NavLink to="/profile" className="menu-item" onClick={closeMenu}>
+            Player Profile
           </NavLink>
           <NavLink to="/leaderboard" className="menu-item" onClick={closeMenu}>
             Leaderboard
-          </NavLink>
-          <NavLink to="/compare" className="menu-item" onClick={closeMenu}>
-            Compare
           </NavLink>
 
           {/* Admin tools, pinned to the bottom of the nav. Backend re-gates each. */}

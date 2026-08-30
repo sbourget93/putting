@@ -9,7 +9,9 @@
  *
  * A `dashed` series (e.g. the global average) is drawn thinner and behind the
  * solid ones; an `emphasis` series (e.g. "you") is drawn thicker and on top.
- * Identity is carried by the caller's legend, never by color alone.
+ * Dots are drawn after every line and stacked by value, so where two dots overlap
+ * the higher make % shows on top. Identity is carried by the caller's legend,
+ * never by color alone.
  */
 import type { DistanceStat } from '../lib/putting'
 import './PuttingChart.css'
@@ -34,6 +36,25 @@ const Y_TICKS = [0, 20, 40, 60, 80, 100]
 function depth(s: SeriesSpec): number {
   if (s.dashed) return 0
   return s.emphasis ? 2 : 1
+}
+
+// A pie wedge (filled sector) from angle a0 to a1, used to split a dot shared by
+// several tied series into an equal slice per series.
+function sectorPath(cx: number, cy: number, r: number, a0: number, a1: number): string {
+  const x0 = cx + r * Math.cos(a0)
+  const y0 = cy + r * Math.sin(a0)
+  const x1 = cx + r * Math.cos(a1)
+  const y1 = cy + r * Math.sin(a1)
+  const largeArc = a1 - a0 > Math.PI ? 1 : 0
+  return `M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 ${largeArc} 1 ${x1} ${y1} Z`
+}
+
+/** The tooltip text for a series' point. */
+function dotTitle(s: SeriesSpec, p: DistanceStat): string {
+  // attempts === 0 marks a computed line (the global average) with no underlying
+  // made/attempts, so show the percentage alone.
+  const value = p.attempts > 0 ? `${p.made}/${p.attempts} (${Math.round(p.pct)}%)` : `${Math.round(p.pct)}%`
+  return `${s.label} — ${p.distance} ft — ${value}`
 }
 
 export default function PuttingChart({ series }: { series: SeriesSpec[] }) {
@@ -63,6 +84,37 @@ export default function PuttingChart({ series }: { series: SeriesSpec[] }) {
   }
 
   const ordered = [...drawn].sort((a, b) => depth(a) - depth(b))
+
+  const dotOf = (s: SeriesSpec, p: DistanceStat) => ({
+    s,
+    p,
+    r: s.emphasis ? 4 : s.dashed ? 2.5 : 3.5,
+    cx: x(p.distance),
+    cy: y(p.pct),
+  })
+
+  // The dashed baseline's dots always sit behind the solid ones, whatever their
+  // value, so they're drawn first and never enter the value stacking below.
+  const dashedDots = ordered.filter((s) => s.dashed).flatMap((s) => s.stats.map((p) => dotOf(s, p)))
+
+  // The solid series (the players) stack by value, so where two dots overlap the
+  // higher make % sits on top; ties keep the emphasized series above.
+  const solidDots = ordered
+    .filter((s) => !s.dashed)
+    .flatMap((s) => s.stats.map((p) => dotOf(s, p)))
+    .sort((a, b) => a.p.pct - b.p.pct || depth(a.s) - depth(b.s))
+
+  // Group solid dots that land on the exact same spot (same distance and make %). A
+  // singleton draws as a plain circle; a tie draws as equal pie wedges, one color
+  // per series, so both are visible instead of one hiding the other. Map insertion
+  // order follows the value sort above, preserving the higher-on-top stacking.
+  const dotGroups = new Map<string, typeof solidDots>()
+  for (const d of solidDots) {
+    const key = `${d.cx.toFixed(2)},${d.cy.toFixed(2)}`
+    const group = dotGroups.get(key) ?? []
+    group.push(d)
+    dotGroups.set(key, group)
+  }
 
   const summary = allDistances.length
     ? `Make percentage by distance from ${minD} to ${maxD} feet`
@@ -109,43 +161,54 @@ export default function PuttingChart({ series }: { series: SeriesSpec[] }) {
         distance (ft)
       </text>
 
-      {/* One polyline + dots per series, in back-to-front order. */}
+      {/* Lines first, back-to-front by depth (dashed behind, emphasized in front). */}
       {ordered.map((s) => {
+        if (s.stats.length < 2) return null
         const points = s.stats.map((p) => `${x(p.distance)},${y(p.pct)}`).join(' ')
         const lineWidth = s.emphasis ? 3 : s.dashed ? 1.5 : 2.2
-        const dotR = s.emphasis ? 4 : s.dashed ? 2.5 : 3.5
         return (
-          <g key={s.id}>
-            {s.stats.length > 1 && (
-              <polyline
-                className="series-line"
-                points={points}
-                style={{
-                  stroke: s.color,
-                  strokeWidth: lineWidth,
-                  strokeDasharray: s.dashed ? '5 4' : undefined,
-                }}
-              />
-            )}
-            {s.stats.map((p) => (
-              <circle
-                key={p.distance}
-                className="series-dot"
-                cx={x(p.distance)}
-                cy={y(p.pct)}
-                r={dotR}
-                style={{ fill: s.color }}
-              >
-                <title>
-                  {/* attempts === 0 marks a computed line (the global average) with
-                      no underlying made/attempts, so show the percentage alone. */}
-                  {s.label} — {p.distance} ft —{' '}
-                  {p.attempts > 0 ? `${p.made}/${p.attempts} (${Math.round(p.pct)}%)` : `${Math.round(p.pct)}%`}
-                </title>
-              </circle>
-            ))}
-          </g>
+          <polyline
+            key={s.id}
+            className="series-line"
+            points={points}
+            style={{
+              stroke: s.color,
+              strokeWidth: lineWidth,
+              strokeDasharray: s.dashed ? '5 4' : undefined,
+            }}
+          />
         )
+      })}
+
+      {/* Baseline dots first, so they stay behind every solid dot. */}
+      {dashedDots.map(({ s, p, r, cx, cy }) => (
+        <circle key={`${s.id}-${p.distance}`} className="series-dot" cx={cx} cy={cy} r={r} style={{ fill: s.color }}>
+          <title>{dotTitle(s, p)}</title>
+        </circle>
+      ))}
+
+      {/* Then the player dots: higher make % on top where they overlap, and a wedge
+          split where several land on the exact same spot. */}
+      {[...dotGroups.values()].flatMap((group) => {
+        const { cx, cy } = group[0]
+        if (group.length === 1) {
+          const { s, p, r } = group[0]
+          return (
+            <circle key={`${s.id}-${p.distance}`} className="series-dot" cx={cx} cy={cy} r={r} style={{ fill: s.color }}>
+              <title>{dotTitle(s, p)}</title>
+            </circle>
+          )
+        }
+        const r = Math.max(...group.map((d) => d.r))
+        return group.map(({ s, p }, i) => {
+          const a0 = -Math.PI / 2 + (i * 2 * Math.PI) / group.length
+          const a1 = -Math.PI / 2 + ((i + 1) * 2 * Math.PI) / group.length
+          return (
+            <path key={`${s.id}-${p.distance}`} className="series-dot" d={sectorPath(cx, cy, r, a0, a1)} style={{ fill: s.color }}>
+              <title>{dotTitle(s, p)}</title>
+            </path>
+          )
+        })
       })}
     </svg>
   )

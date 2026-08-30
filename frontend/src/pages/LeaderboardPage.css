@@ -71,8 +71,8 @@
   color: var(--brand);
 }
 
-/* The expanded graph sits flush inside the entry. */
+/* The expanded graph sits inside the entry as a standard chart panel (gray
+   background and frame), so it matches the graphs elsewhere in the app. */
 .entry-detail {
-  padding: 0.3rem 0.6rem 0.6rem;
-  border-top: 1px solid color-mix(in srgb, CanvasText 8%, Canvas);
+  padding: 0.6rem;
 }

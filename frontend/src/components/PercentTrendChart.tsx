@@ -14,11 +14,26 @@ export interface TrendPoint {
 }
 
 const W = 340
-const H = 240
-const PAD = { top: 12, right: 16, bottom: 30, left: 34 }
+const H = 96
+const PAD = { top: 10, right: 16, bottom: 26, left: 34 }
 const PLOT_W = W - PAD.left - PAD.right
 const PLOT_H = H - PAD.top - PAD.bottom
-const Y_TICKS = [0, 20, 40, 60, 80, 100]
+
+// A tight Y window around the data rather than a fixed 0–100, so day-to-day
+// changes in a narrow band are legible. Round the min down and the max up to a
+// multiple of 10, then pad two more each way (65–78 → 58–82), clamped to [0, 100].
+function yBounds(pcts: number[]): { lo: number; hi: number } {
+  const lo = Math.max(0, Math.floor(Math.min(...pcts) / 10) * 10 - 2)
+  const hi = Math.min(100, Math.ceil(Math.max(...pcts) / 10) * 10 + 2)
+  return hi > lo ? { lo, hi } : { lo: Math.max(0, lo - 10), hi: Math.min(100, hi + 10) }
+}
+
+/** Gridline values: every multiple of 10 inside [lo, hi]. */
+function yTicks(lo: number, hi: number): number[] {
+  const ticks: number[] = []
+  for (let t = Math.ceil(lo / 10) * 10; t <= hi; t += 10) ticks.push(t)
+  return ticks
+}
 
 /** Local midnight timestamp for a YYYY-MM-DD day (parsed as a local date). */
 function dayTime(day: string): number {
@@ -42,8 +57,10 @@ export default function PercentTrendChart({ points }: { points: TrendPoint[] }) 
   const tMax = dayTime(pts[pts.length - 1].day)
   const span = tMax - tMin || 1 // avoid /0 when there's a single day
 
+  const { lo, hi } = yBounds(pts.map((p) => p.pct))
+  const yRange = hi - lo
   const x = (t: number) => PAD.left + (tMax === tMin ? PLOT_W / 2 : ((t - tMin) / span) * PLOT_W)
-  const y = (pct: number) => PAD.top + (1 - pct / 100) * PLOT_H
+  const y = (pct: number) => PAD.top + (1 - (pct - lo) / yRange) * PLOT_H
 
   const coords = pts.map((p) => ({ ...p, cx: x(dayTime(p.day)), cy: y(p.pct) }))
   const line = coords.map((c) => `${c.cx},${c.cy}`).join(' ')
@@ -68,7 +85,7 @@ export default function PercentTrendChart({ points }: { points: TrendPoint[] }) 
       preserveAspectRatio="xMidYMid meet"
     >
       {/* Y gridlines + labels */}
-      {Y_TICKS.map((t) => (
+      {yTicks(lo, hi).map((t) => (
         <g key={t}>
           <line className="grid" x1={PAD.left} y1={y(t)} x2={W - PAD.right} y2={y(t)} />
           <text className="axis-label" x={PAD.left - 6} y={y(t)} dominantBaseline="middle" textAnchor="end">
