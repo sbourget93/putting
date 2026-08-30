@@ -13,9 +13,9 @@
   gap: 0.5rem;
 }
 
-/* Search and the all-time card together span the full width, roughly 60/40. */
+/* Search and the all-time card split the full width evenly. */
 .profile-title-row .history-search {
-  flex: 45 1 0;
+  flex: 1 1 0;
 }
 
 .profile-name {
@@ -33,7 +33,7 @@
 /* The player's all-time make % across every complete test, in a small card to
    the right of the search, framed like the other panels on the page. */
 .profile-overall {
-  flex: 55 1 0;
+  flex: 1 1 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -108,8 +108,11 @@
 .history-search-results {
   position: absolute;
   z-index: 5;
+  /* The input is only half the header row; the results span the whole row (both
+     halves plus the 0.5rem gap between them) so the list gets the full width. */
   left: 0;
-  right: 0;
+  right: auto;
+  width: calc(200% + 0.5rem);
   margin: 0.3rem 0 0;
   padding: 0.25rem;
   list-style: none;

@@ -232,7 +232,6 @@ function HistoryPage() {
                     </span>
                   </span>
                 )}
-                <span className="profile-overall-label">all-time putting %</span>
               </span>
             </div>
           )}
