@@ -264,7 +264,7 @@ def get_stats():
 
 
 @router.get("/leaderboard")
-def get_leaderboard(start: str | None = None, end: str | None = None):
+def get_leaderboard(start: str | None = None, end: str | None = None, day: str | None = None):
     """Players ranked by overall daily-test make %, over an optional date window.
 
     Public and email-free, like /stats. Complete tests only (incomplete tests don't
@@ -275,6 +275,10 @@ def get_leaderboard(start: str | None = None, end: str | None = None):
     its make-%-by-distance breakdown so the client can draw that player's line for
     the chosen range without a second request. Only players with attempts in the
     window appear, best overall % first.
+
+    `day` (a local YYYY-MM-DD) additionally returns `in_progress`: players who have
+    started but not yet finished that day's test, so the Today board can show who is
+    mid-round. A finished test (all distances) is ranked above and never appears here.
     """
     clauses = [
         "b.deleted_at IS NULL",
@@ -303,6 +307,26 @@ def get_leaderboard(start: str | None = None, end: str | None = None):
             "ORDER BY u.name, b.distance",
             params,
         ).fetchall()
+
+        # Who has started `day`'s test, with their make-% so far by distance. A
+        # player who has covered every distance has finished (ranked above) and is
+        # dropped below; the rest are mid-round. The breakdown lets the client draw
+        # their partial line without another request, like the ranked entries.
+        in_progress_rows = []
+        if day:
+            in_progress_rows = conn.execute(
+                "SELECT u.sub AS sub, u.name AS name, u.picture AS picture, "
+                "b.distance AS distance, SUM(b.made) AS made, SUM(b.batch_size) AS attempts "
+                "FROM tests t "
+                "JOIN batches b ON b.test_id = t.test_id AND b.owner_sub = t.owner_sub "
+                "AND b.deleted_at IS NULL "
+                "JOIN users u ON u.sub = t.owner_sub AND u.deleted_at IS NULL "
+                "WHERE t.deleted_at IS NULL AND t.test_date = ? "
+                "GROUP BY u.sub, u.name, u.picture, b.distance "
+                "ORDER BY u.name, b.distance",
+                (day,),
+            ).fetchall()
+
         version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
 
     users: dict[str, dict] = {}
@@ -333,4 +357,31 @@ def get_leaderboard(start: str | None = None, end: str | None = None):
     entries.sort(key=lambda e: e["name"])
     entries.sort(key=lambda e: e["overall_pct"], reverse=True)
 
-    return {"version": version, "users": entries}
+    # Group today's per-distance rows into one entry per player. Distinct distances
+    # recorded (len of stats) gives how far along they are; a player at every
+    # distance has finished and is excluded here (they are ranked above).
+    progress: dict[str, dict] = {}
+    for r in in_progress_rows:
+        player = progress.get(r["sub"])
+        if player is None:
+            player = {"sub": r["sub"], "name": r["name"], "picture": r["picture"], "stats": []}
+            progress[r["sub"]] = player
+        made, attempts = r["made"], r["attempts"]
+        player["stats"].append(
+            {
+                "distance": r["distance"],
+                "made": made,
+                "attempts": attempts,
+                "pct": (100 * made / attempts) if attempts else 0,
+            }
+        )
+    in_progress = [
+        {**player, "done": len(player["stats"]), "remaining": TEST_DISTANCE_COUNT - len(player["stats"])}
+        for player in progress.values()
+        if len(player["stats"]) < TEST_DISTANCE_COUNT
+    ]
+    # Furthest along first, then name for deterministic ties.
+    in_progress.sort(key=lambda e: e["name"])
+    in_progress.sort(key=lambda e: e["done"], reverse=True)
+
+    return {"version": version, "users": entries, "in_progress": in_progress}

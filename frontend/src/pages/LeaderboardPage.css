@@ -76,3 +76,23 @@
 .entry-detail {
   padding: 0.6rem;
 }
+
+/* A mid-round player's trailing cell, where a ranked row shows its %: a caution
+   glyph and how many batches are still owed (matching the profile's incomplete row). */
+.board-remaining {
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  text-align: right;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: color-mix(in srgb, CanvasText 55%, Canvas);
+}
+
+.board-remaining svg {
+  flex: 0 0 auto;
+  color: #c98500;
+}

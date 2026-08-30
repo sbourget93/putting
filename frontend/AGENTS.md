@@ -26,8 +26,8 @@ A React + TypeScript single-page app built with Vite. Mobile-first, per the root
 | `src/offline/` | Local-first sync engine: cached projections, write queue, dead-letter |
 | `src/config.ts` | Repo-root config, re-exported from `virtual:app-config` |
 | `src/index.css` | Global base styles and theme variables |
-| `public/sw.js` | PWA service worker (app-shell cache); registered in prod by `src/registerSW.ts` |
-| `vite.config.ts` | Build config + the `app-config` plugin (also generates the PWA manifest) |
+| `sw.js` | PWA service worker (app-shell cache); registered in prod by `src/registerSW.ts`. Lives at the frontend root, not `public/`, so the `app-config` plugin can stamp a per-build version into it and emit it as `/sw.js` (a changed worker every deploy triggers the SW update path). |
+| `vite.config.ts` | Build config + the `app-config` plugin (also generates the PWA manifest and emits the version-stamped `sw.js`) |
 
 ## Decisions
 

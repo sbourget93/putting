@@ -7,9 +7,15 @@ import react from '@vitejs/plugin-react'
 // The repo root holds config shared with the backend and infrastructure. It sits
 // one level up on the host, but the dev container mounts it elsewhere and points
 // APP_REPO_ROOT at it (see local/docker-compose.yml).
-const repoRoot =
-  process.env.APP_REPO_ROOT ??
-  resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const frontendRoot = dirname(fileURLToPath(import.meta.url))
+const repoRoot = process.env.APP_REPO_ROOT ?? resolve(frontendRoot, '..')
+
+// A version unique to each build, stamped into the service worker so every deploy
+// ships a byte-different worker. That is what makes the browser re-run the SW's
+// install/activate — refreshing the cached shell and sweeping the old cache —
+// instead of leaving an unchanged worker to cold-start the stale shell.
+const SW_VERSION = Date.now().toString(36)
+const SW_SOURCE = resolve(frontendRoot, 'sw.js')
 
 const appConfigPath = resolve(repoRoot, 'app.config.json')
 // Forking the template means deleting this marker, which also drops the
@@ -27,7 +33,7 @@ const VIRTUAL_ID = 'virtual:app-config'
 const RESOLVED_VIRTUAL_ID = '\0' + VIRTUAL_ID
 
 // Served at the origin root in dev and emitted into the build. Keep in sync with
-// the SW's SHELL precache list (frontend/public/sw.js).
+// the SW's SHELL precache list (frontend/sw.js).
 const MANIFEST_PATH = '/manifest.webmanifest'
 // Should track --brand in src/index.css; the manifest can't read CSS variables.
 const THEME_COLOR = '#0273c9'
@@ -127,6 +133,15 @@ export default defineConfig({
           type: 'asset',
           fileName: 'manifest.webmanifest',
           source: buildManifest(),
+        })
+        // Emit the service worker with this build's version stamped into CACHE, so
+        // a deploy that only changes app assets still ships a changed worker and
+        // triggers the SW update path. The source lives at the frontend root (not
+        // public/) so it isn't also copied verbatim and this stamped copy wins.
+        this.emitFile({
+          type: 'asset',
+          fileName: 'sw.js',
+          source: readFileSync(SW_SOURCE, 'utf-8').replaceAll('__SW_VERSION__', SW_VERSION),
         })
       },
     },

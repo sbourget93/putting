@@ -26,9 +26,15 @@
  *                    it in the background. Fingerprinted assets are immutable, so
  *                    this is safe and fast.
  *
- * Bump CACHE to force a clean sweep of old entries on the next activate.
+ * CACHE carries a per-build version stamped in by the vite `app-config` plugin
+ * (the __SW_VERSION__ placeholder). Every deploy therefore ships a byte-different
+ * worker, so the browser runs install/activate again: precacheShell refreshes the
+ * cached shell to the new build and activate sweeps the previous version's cache.
+ * Without that stamp an asset-only deploy left the worker unchanged, so a PWA
+ * could cold-start the old shell until a manual refresh. Paired with the
+ * reload-on-update in src/registerSW.ts, a stale cold start now heals itself.
  */
-const CACHE = 'app-shell-v3'
+const CACHE = 'app-shell-__SW_VERSION__'
 // Bound a navigation fetch so a reachable-but-stalled server falls back to the
 // cached shell quickly instead of leaving the page hanging on a blank load.
 const NAV_TIMEOUT_MS = 10000

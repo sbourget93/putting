@@ -23,15 +23,31 @@ export interface LeaderboardEntry {
   stats: DistanceStat[]
 }
 
+/** A player mid-round: today's test started but not yet finished. */
+export interface InProgressEntry {
+  sub: string
+  name: string
+  picture: string | null
+  done: number // distances recorded so far
+  remaining: number // distances still owed
+  stats: DistanceStat[] // make-% so far, by distance, for the partial line
+}
+
 export interface LeaderboardData {
   entries: LeaderboardEntry[]
+  inProgress: InProgressEntry[]
   loading: boolean
   error: string | null
 }
 
-/** Ranked players for the window [start, end] (inclusive); omit a bound for open. */
-export function useLeaderboard(start?: string, end?: string): LeaderboardData {
+/**
+ * Ranked players for the window [start, end] (inclusive); omit a bound for open.
+ * Pass `day` (a local YYYY-MM-DD) to also get `inProgress`: players mid-round on
+ * that day, for the Today board. Other windows leave it empty.
+ */
+export function useLeaderboard(start?: string, end?: string, day?: string): LeaderboardData {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
+  const [inProgress, setInProgress] = useState<InProgressEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -41,14 +57,16 @@ export function useLeaderboard(start?: string, end?: string): LeaderboardData {
     const params = new URLSearchParams()
     if (start) params.set('start', start)
     if (end) params.set('end', end)
+    if (day) params.set('day', day)
     const qs = params.toString()
     void (async () => {
       try {
         const res = await fetchWithTimeout(`/api/leaderboard${qs ? `?${qs}` : ''}`)
         if (!res.ok) throw new Error(`Could not load leaderboard (${res.status})`)
-        const body = (await res.json()) as { users: LeaderboardEntry[] }
+        const body = (await res.json()) as { users: LeaderboardEntry[]; in_progress?: InProgressEntry[] }
         if (!cancelled) {
           setEntries(body.users)
+          setInProgress(body.in_progress ?? [])
           setError(null)
         }
       } catch (cause) {
@@ -60,7 +78,7 @@ export function useLeaderboard(start?: string, end?: string): LeaderboardData {
     return () => {
       cancelled = true
     }
-  }, [start, end])
+  }, [start, end, day])
 
-  return { entries, loading, error }
+  return { entries, inProgress, loading, error }
 }
