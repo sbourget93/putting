@@ -7,6 +7,16 @@
  * touching Google again. Admin status is whatever the backend reports live from
  * its `sub` allowlist — never decided here.
  *
+ * That restore needs the server, though. On a cold boot with the server down,
+ * `/auth/me` fails and the viewer would otherwise fall back to a logged-out,
+ * read-only day whose baseline is fetched live — the "Failed to fetch" an offline
+ * writer hits before their offline (IndexedDB) path ever runs. So we also cache
+ * the last known session in localStorage and seed state from it, letting a writer
+ * boot straight into the offline path. The cache only unlocks the local UI and
+ * write queue; the backend re-gates every write regardless (a revoked role's
+ * queued writes are rejected on the next sync and parked in the dead-letter),
+ * so a tampered cache grants nothing server-side.
+ *
  * Sign-in itself (Google Identity Services) lives in GoogleSignInButton; this
  * provider just exposes `signInWithCredential`, which trades a Google ID token
  * for the backend session, and the resulting user/isAdmin state. The context,
@@ -23,6 +33,13 @@ type MeResponse = { user: User | null; is_admin: boolean; role?: Role }
 // instead of vanishing when the config fetch fails.
 const CLIENT_ID_KEY = 'auth.googleClientId'
 
+// Last known session, cached so a cold offline boot restores the writer path
+// before the network resolves. Only innocuous fields are stored (no email — the
+// backend never returns one; see the root AGENTS.md "No Sensitive Data").
+const SESSION_KEY = 'auth.session'
+
+type RememberedSession = { user: User | null; isAdmin: boolean; role: Role }
+
 function rememberedClientId(): string {
   try {
     return localStorage.getItem(CLIENT_ID_KEY) ?? ''
@@ -31,11 +48,43 @@ function rememberedClientId(): string {
   }
 }
 
+function rememberedSession(): RememberedSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+    const s = JSON.parse(raw) as RememberedSession
+    return { user: s.user ?? null, isAdmin: Boolean(s.isAdmin), role: s.role ?? 'public' }
+  } catch {
+    return null
+  }
+}
+
+function rememberSession(session: RememberedSession): void {
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+  } catch {
+    // Private mode / storage disabled: the session just won't survive a cold
+    // offline start, same as before.
+  }
+}
+
+function forgetSession(): void {
+  try {
+    localStorage.removeItem(SESSION_KEY)
+  } catch {
+    // Nothing to clean up if storage is unavailable.
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
-  const [user, setUser] = useState<User | null>(null)
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [role, setRole] = useState<Role>('public')
+  // Seed from the cached session so a signed-in writer's `canWrite` is true on the
+  // first render, before `/auth/me` resolves — a cold offline boot then takes the
+  // offline (IndexedDB) path instead of the read-only, server-dependent one. Lazy
+  // initializers read localStorage once at mount, not on every render.
+  const [user, setUser] = useState<User | null>(() => rememberedSession()?.user ?? null)
+  const [isAdmin, setIsAdmin] = useState(() => rememberedSession()?.isAdmin ?? false)
+  const [role, setRole] = useState<Role>(() => rememberedSession()?.role ?? 'public')
   const [googleClientId, setGoogleClientId] = useState(rememberedClientId)
 
   useEffect(() => {
@@ -51,6 +100,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(me.user)
           setIsAdmin(Boolean(me.is_admin))
           setRole(me.role ?? 'public')
+          // Reconcile the cache with the server's truth: remember a live session,
+          // forget it once the server says we're signed out.
+          if (me.user) {
+            rememberSession({ user: me.user, isAdmin: Boolean(me.is_admin), role: me.role ?? 'public' })
+          } else {
+            forgetSession()
+          }
         }
         if (!cancelled && cfgRes.ok) {
           const cfg = (await cfgRes.json()) as { google_client_id: string }
@@ -87,6 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(body.user)
     setIsAdmin(Boolean(body.is_admin))
     setRole(body.role ?? 'public')
+    rememberSession({ user: body.user, isAdmin: Boolean(body.is_admin), role: body.role ?? 'public' })
   }, [])
 
   const signOut = useCallback(async () => {
@@ -97,6 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null)
       setIsAdmin(false)
       setRole('public')
+      forgetSession()
       // Stop Google from silently re-selecting the same account on next sign-in.
       window.google?.accounts.id.disableAutoSelect()
     }

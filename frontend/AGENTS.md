@@ -14,7 +14,7 @@ A React + TypeScript single-page app built with Vite. Mobile-first, per the root
 | Routing | `react-router-dom` 7 |
 | Linting | oxlint (`npm run lint`) |
 | Styling | Plain CSS, one file per component. No framework, no CSS-in-JS. |
-| State | React state for UI; app data flows through the local-first sync engine (`src/offline/`, admin-only). |
+| State | React state for UI; app data flows through the local-first sync engine (`src/offline/`, runs for any signed-in writer). |
 
 ## Layout
 | Path | Holds |
@@ -54,7 +54,9 @@ Import shared values from `../config`, never by reading the JSON directly. The s
 Google Identity Services signs the user in; the backend verifies the token once and keeps the identity in a signed session cookie, so a device stays signed in. `AuthProvider` (`auth.tsx`) exposes `useAuth()` with the current user and a live `isAdmin`, derived server-side from `ADMIN_EMAILS` and never trusted from the client. Every mutation control hides behind `isAdmin`; the backend re-gates writes regardless. See `auth.tsx`, `auth-context.ts`, `GoogleSignInButton.tsx`, `gis.ts`.
 
 ## Data layer (local-first)
-Admin-only: the event log is admin-gated, so only admins run the engine; non-admins read the online query endpoints directly.
+Writer-gated: the engine runs for any signed-in writer (`canWrite`, any role but the read-only `public`), reading and writing through the open per-aggregate query endpoints and `/commands`.
+It never touches the admin-only `/events` log.
+A logged-out or read-only viewer gets an inert engine and reads the online query endpoints directly.
 
 **Offline is scoped to Daily Putts, on purpose.** That page is the only one that must work offline, and we don't want to ship a growing dataset to every device. So the cached aggregates read only the compact, bounded `GET /daily` payload (today's test, today's batches, and the all-time by-distance `baseline`) via the shared `aggregates/daily.ts` (which dedupes their concurrent reads into one request). History / Leaderboard / Compare are online-only, fetched on demand, never cached — they can pull the full log because a person opens them deliberately, not on every visit.
 

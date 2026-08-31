@@ -12,8 +12,9 @@ createRoot(document.getElementById('root')!).render(
     {/* AuthProvider restores the signed-in user from the session cookie on load
         and exposes auth state app-wide via useAuth. */}
     <AuthProvider>
-      {/* StoreProvider stands up the offline data layer, but only for admins —
-          it folds the admin-only event log. Must sit inside AuthProvider. */}
+      {/* StoreProvider stands up the offline data layer for any signed-in writer;
+          a logged-out or read-only viewer gets an inert engine. Must sit inside
+          AuthProvider. */}
       <StoreProvider>
         {/* BrowserRouter enables client-side routing. Deep links work because Vite
             falls back to index.html in dev; prod needs the same fallback in nginx. */}

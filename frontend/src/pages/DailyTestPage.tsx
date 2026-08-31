@@ -234,8 +234,8 @@ function CompleteSummary({
 
 /**
  * Each recorded batch today, by distance, with a pencil to correct a fat-fingered
- * count and a trash can to remove it. Both actions are admin-only; read-only
- * viewers don't see them.
+ * count and a trash can to remove it. Both actions are writer-only (`canWrite`);
+ * read-only viewers don't see them.
  */
 function TodayBatches({
   batches,

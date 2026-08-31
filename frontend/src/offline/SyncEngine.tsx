@@ -15,9 +15,9 @@
  * permanently rejected (4xx → reset to server + dead-letter for review), or
  * fails transiently (5xx/network → stay queued and retry).
  *
- * `enabled` gates the whole engine on admin: the event/data layer is admin-only
- * (see StoreProvider), so a non-admin gets an inert, empty engine that never
- * touches the network or IndexedDB.
+ * `enabled` gates the whole engine on `canWrite`: the data layer runs for any
+ * signed-in writer (see StoreProvider), so a logged-out or read-only `public`
+ * viewer gets an inert, empty engine that never touches the network or IndexedDB.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import * as db from './db'
