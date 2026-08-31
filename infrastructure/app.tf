@@ -18,6 +18,7 @@ locals {
 module "app" {
   source                           = "./terraform"
   app_name                         = local.app_name
+  repo_url                         = "https://github.com/sbourget93/putting.git"
   events_bootstrap_readonly_prefix = local.is_prod ? "" : "putting/events"
   secrets_path                     = local.is_prod ? "/shared" : "/shared-qa"
 }
