@@ -75,6 +75,9 @@ docker run -d --restart unless-stopped \
   --name backend \
   -e S3_BUCKET=${s3_bucket} \
   -e S3_EVENTS_PREFIX=${s3_events_prefix} \
+%{ if s3_readonly ~}
+  -e S3_READONLY=1 \
+%{ endif ~}
   -e AWS_DEFAULT_REGION=${region} \
   -e GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
   -e ADMIN_SUBS="$ADMIN_SUBS" \

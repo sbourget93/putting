@@ -45,6 +45,12 @@ variable "certbot_email" {
   default     = ""
 }
 
+variable "events_bootstrap_readonly_prefix" {
+  description = "S3 key prefix to bootstrap the event log from, read-only (e.g. \"putting/events\" so a QA box seeds from prod without writing back). Empty = use this app's own events prefix with read/write backup."
+  type        = string
+  default     = ""
+}
+
 variable "github_owner" {
   description = "GitHub user or org that owns the app repos. Used to infer repo_url when it is unset."
   type        = string

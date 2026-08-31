@@ -3,7 +3,8 @@ locals {
   dns_enabled = var.dns_zone_name != ""
   subdomain   = var.subdomain != "" ? var.subdomain : "${var.app_name}.${var.dns_zone_name}"
 
-  s3_events_prefix      = "${local.s3_prefix}/events"
+  events_readonly       = var.events_bootstrap_readonly_prefix != ""
+  s3_events_prefix      = local.events_readonly ? var.events_bootstrap_readonly_prefix : "${local.s3_prefix}/events"
   s3_letsencrypt_prefix = "${local.s3_prefix}/letsencrypt"
 
   repo_url = var.repo_url != "" ? var.repo_url : "https://github.com/${var.github_owner}/${var.app_name}.git"
@@ -17,6 +18,7 @@ locals {
     repo_url         = local.repo_url
     s3_bucket        = var.s3_bucket
     s3_events_prefix = "${local.s3_events_prefix}/"
+    s3_readonly      = local.events_readonly
     region           = var.region
     secrets_path     = var.secrets_path
   })

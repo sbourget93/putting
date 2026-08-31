@@ -18,6 +18,10 @@ is only ever compacted once every one of its events is confirmed uploaded.
 
 Everything here is best-effort and runs off the request path: an S3 outage must
 never fail an admin write. Disabled entirely when S3_BUCKET is unset (local dev).
+
+Read-only mode (S3_READONLY): restore still runs, but every write path (upload,
+compaction, delete) is skipped. Used by non-prod environments that bootstrap
+their event log from another environment's prefix without writing back to it.
 """
 
 import json
@@ -32,6 +36,7 @@ log = logging.getLogger("s3_sync")
 
 BUCKET = os.environ.get("S3_BUCKET", "")
 PREFIX = os.environ.get("S3_EVENTS_PREFIX", "events/")
+READONLY = os.environ.get("S3_READONLY", "") not in ("", "0")
 REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 SYNC_INTERVAL = float(os.environ.get("S3_SYNC_INTERVAL", "30"))
 
@@ -227,7 +232,7 @@ def _delete_keys(keys: list[str]) -> None:
 
 def sync_once() -> None:
     """One best-effort sync pass: upload new events, then compact full blocks."""
-    if not enabled():
+    if not enabled() or READONLY:
         return
     try:
         uploaded_through = _upload_new_events()
@@ -340,7 +345,7 @@ def _loop() -> None:
 
 def start_background_sync() -> None:
     global _thread
-    if not enabled() or _thread is not None:
+    if not enabled() or READONLY or _thread is not None:
         return
     _stop.clear()
     _thread = threading.Thread(target=_loop, name="s3-sync", daemon=True)

@@ -10,7 +10,13 @@ provider "aws" {
   region = "us-east-1"
 }
 
+locals {
+  is_prod  = terraform.workspace == "default"
+  app_name = local.is_prod ? "putting" : "putting-${terraform.workspace}"
+}
+
 module "app" {
-  source   = "./terraform"
-  app_name = "putting"
+  source                           = "./terraform"
+  app_name                         = local.app_name
+  events_bootstrap_readonly_prefix = local.is_prod ? "" : "putting/events"
 }

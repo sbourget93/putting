@@ -211,5 +211,35 @@ class S3SyncTest(unittest.TestCase):
         self.assertIn("events/000000000011.json", self.s3.store)
 
 
+    def test_readonly_bootstraps_but_never_writes(self):
+        # A QA box points at prod's prefix in read-only mode: it must restore the
+        # log but never upload, compact, or delete anything under that prefix.
+        self._insert(25)
+        s3_sync.sync_once()  # seed S3 as if prod had written it
+        seeded = dict(self.s3.store)
+
+        s3_sync.READONLY = True
+        try:
+            # A fresh box with unsynced events: sync_once must be a total no-op...
+            self._fresh_db()
+            s3_sync.restore_from_s3()  # bootstrap still works
+            with db.read() as conn:
+                count = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+            self.assertEqual(count, 25)
+
+            # Force a full backlog to look unsynced: sync_once must still write
+            # nothing (no uploads, no compaction, no deletes) under prod's prefix.
+            s3_sync._set_state("uploaded_through", 0)
+            s3_sync._set_state("merged_through", 0)
+            s3_sync.sync_once()
+            self.assertEqual(self.s3.store, seeded)  # S3 untouched
+
+            # The background sync thread must not start in read-only mode.
+            s3_sync.start_background_sync()
+            self.assertIsNone(s3_sync._thread)
+        finally:
+            s3_sync.READONLY = False
+
+
 if __name__ == "__main__":
     unittest.main()

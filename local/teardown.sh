@@ -9,5 +9,5 @@ case "${1:-}" in
 esac
 shift
 
-terraform workspace select -or-create "$WORKSPACE"
-terraform apply -replace=module.app.aws_instance.app "$@"
+terraform workspace select "$WORKSPACE"
+terraform destroy "$@"

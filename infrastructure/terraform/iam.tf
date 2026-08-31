@@ -17,14 +17,19 @@ resource "aws_iam_instance_profile" "app" {
 }
 
 data "aws_iam_policy_document" "app" {
-  # Read/write this app's own certs and event log under its S3 prefix.
+  # Read/write this app's own certs under its S3 prefix.
   statement {
-    sid     = "AppObjects"
-    actions = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-    resources = [
-      "arn:aws:s3:::${var.s3_bucket}/${local.s3_letsencrypt_prefix}/*",
-      "arn:aws:s3:::${var.s3_bucket}/${local.s3_events_prefix}/*",
-    ]
+    sid       = "CertObjects"
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = ["arn:aws:s3:::${var.s3_bucket}/${local.s3_letsencrypt_prefix}/*"]
+  }
+
+  # The event log: read/write normally, read-only when bootstrapping from
+  # another environment's prefix (so QA can seed from prod but never write to it).
+  statement {
+    sid       = "EventObjects"
+    actions   = local.events_readonly ? ["s3:GetObject"] : ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = ["arn:aws:s3:::${var.s3_bucket}/${local.s3_events_prefix}/*"]
   }
 
   statement {
