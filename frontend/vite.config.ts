@@ -38,15 +38,29 @@ const MANIFEST_PATH = '/manifest.webmanifest'
 // Should track --brand in src/index.css; the manifest can't read CSS variables.
 const THEME_COLOR = '#0273c9'
 
+// Non-prod builds get a labeled name and badged icons so an installed QA app is
+// obviously not production. APP_ENV is passed as a Docker build-arg by the infra
+// for non-prod environments (e.g. "qa"); unset means prod / local dev. Badged
+// icons live under public/<env>/ (e.g. public/qa/icon-192.png).
+const APP_ENV = process.env.APP_ENV ?? ''
+const ENV_LABEL = APP_ENV ? APP_ENV.toUpperCase() : ''
+const ICON_DIR = APP_ENV ? `/${APP_ENV}` : ''
+
 function readAppConfig(): { name: string } {
   return JSON.parse(readFileSync(appConfigPath, 'utf-8')) as { name: string }
+}
+
+// The display name shown as the app title, tab title, and installed PWA name.
+function appDisplayName(): string {
+  const { name } = readAppConfig()
+  return ENV_LABEL ? `${name} ${ENV_LABEL}` : name
 }
 
 // The PWA manifest is generated from app.config.json so the installed app's name
 // tracks the rest of the config. Icons are the 192/512 PNGs in public/ (see
 // public/icon-*.png) for a polished home-screen install.
 function buildManifest(): string {
-  const { name } = readAppConfig()
+  const name = appDisplayName()
   return JSON.stringify(
     {
       name,
@@ -57,8 +71,8 @@ function buildManifest(): string {
       background_color: '#ffffff',
       theme_color: THEME_COLOR,
       icons: [
-        { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: `${ICON_DIR}/icon-192.png`, sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: `${ICON_DIR}/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any' },
       ],
     },
     null,
@@ -90,7 +104,7 @@ export default defineConfig({
       load(id) {
         if (id !== RESOLVED_VIRTUAL_ID) return
         return [
-          `export const APP_NAME = ${JSON.stringify(readAppConfig().name)}`,
+          `export const APP_NAME = ${JSON.stringify(appDisplayName())}`,
           `export const IS_TEMPLATE = ${JSON.stringify(existsSync(isTemplatePath))}`,
         ].join('\n')
       },
@@ -99,13 +113,14 @@ export default defineConfig({
         // so the app name is substituted here instead. The PWA head tags are
         // injected here too (rather than hard-coded in index.html) so the app
         // name and manifest link stay derived from app.config.json.
-        const { name } = readAppConfig()
+        const name = appDisplayName()
         return {
           html: html.replaceAll('%APP_NAME%', name),
           tags: [
+            { tag: 'link', attrs: { rel: 'icon', type: 'image/png', href: `${ICON_DIR}/favicon.png` }, injectTo: 'head' },
             { tag: 'link', attrs: { rel: 'manifest', href: MANIFEST_PATH }, injectTo: 'head' },
             { tag: 'meta', attrs: { name: 'theme-color', content: THEME_COLOR }, injectTo: 'head' },
-            { tag: 'link', attrs: { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' }, injectTo: 'head' },
+            { tag: 'link', attrs: { rel: 'apple-touch-icon', href: `${ICON_DIR}/apple-touch-icon.png` }, injectTo: 'head' },
             { tag: 'meta', attrs: { name: 'apple-mobile-web-app-capable', content: 'yes' }, injectTo: 'head' },
             { tag: 'meta', attrs: { name: 'apple-mobile-web-app-title', content: name }, injectTo: 'head' },
           ],

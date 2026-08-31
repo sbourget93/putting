@@ -61,7 +61,7 @@ for required in GOOGLE_CLIENT_ID SESSION_SECRET; do
 done
 
 docker network create ${app_name}-net 2>/dev/null || true
-docker build -t ${app_name}-frontend -f /app/frontend/Dockerfile.prod /app
+docker build -t ${app_name}-frontend -f /app/frontend/Dockerfile.prod --build-arg APP_ENV=${app_env} /app
 docker build -t ${app_name}-backend /app/backend
 docker build -t ${app_name}-gateway /app/gateway
 

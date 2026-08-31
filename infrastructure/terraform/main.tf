@@ -11,6 +11,7 @@ locals {
 
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
     app_name         = var.app_name
+    app_env          = var.app_env
     dns_enabled      = local.dns_enabled
     domain           = local.subdomain
     letsencrypt_s3   = "s3://${var.s3_bucket}/${local.s3_letsencrypt_prefix}"

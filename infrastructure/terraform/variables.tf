@@ -45,6 +45,12 @@ variable "certbot_email" {
   default     = ""
 }
 
+variable "app_env" {
+  description = "Environment label for non-prod deploys (e.g. \"qa\"), passed to the frontend build so it labels the app name and uses badged icons. Empty builds as production."
+  type        = string
+  default     = ""
+}
+
 variable "events_bootstrap_readonly_prefix" {
   description = "S3 key prefix to bootstrap the event log from, read-only (e.g. \"putting/events\" so a QA box seeds from prod without writing back). Empty = use this app's own events prefix with read/write backup."
   type        = string

@@ -13,6 +13,10 @@ COPY frontend/ ./
 # template-only pages ship here; a fork deletes the marker and drops them.
 COPY app.config.json .is_templat[e] /repo/
 ENV APP_REPO_ROOT=/repo
+# Non-prod environments pass their name (e.g. "qa") so the build labels the app
+# name and uses badged icons. Empty (the default) builds as production.
+ARG APP_ENV=""
+ENV APP_ENV=$APP_ENV
 RUN npm run build
 
 FROM nginx:alpine
