@@ -19,4 +19,5 @@ module "app" {
   source                           = "./terraform"
   app_name                         = local.app_name
   events_bootstrap_readonly_prefix = local.is_prod ? "" : "putting/events"
+  secrets_path                     = local.is_prod ? "/shared" : "/shared-qa"
 }
