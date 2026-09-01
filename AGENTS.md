@@ -12,7 +12,7 @@ This table does not prescribe solutions, it only provides context and constraint
 | **Event Sourced** | This app uses event sourcing and projections. Events will be persisted to S3 for durability. |
 | **Writes Require Login** | Only logged in users should be able to perform actions resulting in a database write. |
 | **User-Scoped Data** | User actions should never be able to modify objects owned by a different user. |
-| **Offline Supported** | The core feature of this app (recording and editing a daily "test" of putts) should work entirely offline and sync to the server when possible. |
+| **Offline Supported** | The core features of this app (the "Daily Putts" page in its entirety) should work entirely offline and sync to the server when possible. |
 | **No Sensitive Data** | All data stored locally or on S3 should be completely innocuous. Things that users might not want to be leaked (such as their email address) should not be stored. Names are fine. |
 
 ## Cross-Component Decisions
