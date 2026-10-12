@@ -21,6 +21,7 @@ import { puttsDescriptor } from './aggregates/putts'
 import { testsDescriptor } from './aggregates/tests'
 import { baselineDescriptor } from './aggregates/baseline'
 import { usersDescriptor, useUsers } from './aggregates/users'
+import { userSettingsDescriptor } from './aggregates/userSettings'
 import type { AggregateDescriptor } from './types'
 
 // Scoped to what Daily Putts needs offline: today's test + batches (foldable
@@ -32,6 +33,7 @@ const AGGREGATES: AggregateDescriptor<any>[] = [
   puttsDescriptor,
   baselineDescriptor,
   usersDescriptor,
+  userSettingsDescriptor,
 ]
 
 /**

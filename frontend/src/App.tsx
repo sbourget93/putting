@@ -3,6 +3,7 @@ import Layout from './components/Layout'
 import DailyTestPage from './pages/DailyTestPage'
 import HistoryPage from './pages/HistoryPage'
 import LeaderboardPage from './pages/LeaderboardPage'
+import SettingsPage from './pages/SettingsPage'
 import UsersPage from './pages/UsersPage'
 import DataPage from './pages/DataPage'
 
@@ -15,6 +16,7 @@ function App() {
         <Route index element={<DailyTestPage />} />
         <Route path="profile" element={<HistoryPage />} />
         <Route path="leaderboard" element={<LeaderboardPage />} />
+        <Route path="settings" element={<SettingsPage />} />
         {/* Admin-only pages; each guards its own content, backend re-gates. */}
         <Route path="admin/users" element={<UsersPage />} />
         <Route path="admin/data" element={<DataPage />} />

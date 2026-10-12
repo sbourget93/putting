@@ -17,10 +17,10 @@ plus one line in `_MODULES`; nothing else in the backend changes. In particular
 
 import sqlite3
 
-from . import batches, putts, tests, users
+from . import batches, putts, tests, user_settings, users
 
 # Registered aggregates. Add new modules here.
-_MODULES = (tests, batches, putts, users)
+_MODULES = (tests, batches, putts, users, user_settings)
 
 # Every projection table's DDL, appended to the core schema by db.py.
 SCHEMA = "".join(module.SCHEMA for module in _MODULES)
