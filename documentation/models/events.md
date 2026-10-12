@@ -17,4 +17,4 @@ This table is backed up to S3 (and frequently compacted) so that it can be resto
 
 ## Relationships
 
-- Referenced by both `sync_state` records
+- Referenced by both [sync_state](./sync_state.md) records.
