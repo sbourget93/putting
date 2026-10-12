@@ -16,6 +16,7 @@ These are all read-model projections derived from the event-sourced data in the 
 | [Test](./projections/tests.md) | A daily test: the container a day's 5-putt test batches belong to. |
 | [Batch](./projections/batches.md) | One recorded set of putts from a single distance in a daily test. |
 | [User](./projections/users.md) | One row per Google account: the display identity and stored role. |
+| [User Setting](./projections/user_settings.md) | One stored preference per user per setting. |
 
 ## Metadata fields
 

@@ -65,6 +65,9 @@ function TopBar() {
           <NavLink to="/leaderboard" className="menu-item" onClick={closeMenu}>
             Leaderboard
           </NavLink>
+          <NavLink to="/settings" className="menu-item" onClick={closeMenu}>
+            Settings
+          </NavLink>
 
           {/* Admin tools, pinned to the bottom of the nav. Backend re-gates each. */}
           {isAdmin && (

@@ -21,6 +21,18 @@ export interface AppUser {
   picture: string | null
 }
 
+/** A stored user preference as the server projection returns it
+ *  (see backend/projections/user_settings.py). One row per `(owner, name)`;
+ *  a setting the user has never changed simply has no row. */
+export interface AppSetting {
+  user_setting_id: string
+  name: string
+  value: boolean
+}
+
+/** Setting keys the app understands. Kept in step with backend KNOWN_SETTINGS. */
+export const TRACK_MISSES = 'track_misses'
+
 /** A putt batch as the server projection returns it (see backend/projections/batches.py). */
 export interface Batch {
   batch_id: string

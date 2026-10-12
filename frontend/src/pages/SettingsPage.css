@@ -1,0 +1,53 @@
+/* Settings page: a list of labelled toggles inside a panel. */
+
+.settings .setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  /* Full-width, 44px-tall touch target per the mobile rules. */
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.settings .setting-label {
+  font-size: 1rem;
+}
+
+/* iOS-style switch, brand-colored when on. Built from a button so it is keyboard
+   and screen-reader accessible (role="switch" + aria-checked drive the state). */
+.settings .toggle {
+  flex: none;
+  width: 52px;
+  height: 32px;
+  padding: 3px;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, CanvasText 30%, Canvas);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.settings .toggle.on {
+  background: var(--brand);
+}
+
+.settings .toggle-knob {
+  display: block;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: Canvas;
+  transition: transform 0.15s ease;
+}
+
+.settings .toggle.on .toggle-knob {
+  transform: translateX(20px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings .toggle,
+  .settings .toggle-knob {
+    transition: none;
+  }
+}
