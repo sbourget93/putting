@@ -16,6 +16,9 @@
   border-radius: 0.7rem;
   font: inherit;
   cursor: pointer;
+  /* No mobile tap-highlight: the default blue flash would otherwise linger over
+     the slot as the picker opens on top of it. */
+  -webkit-tap-highlight-color: transparent;
 }
 
 .putt-slot-mark {
