@@ -31,6 +31,32 @@ export interface Batch {
   created_at: string
 }
 
+/** Where a missed putt ended up. Kept in step with backend/projections/putts.py's MISS_TYPES. */
+export type MissType =
+  | 'HIGH'
+  | 'LOW'
+  | 'LEFT'
+  | 'RIGHT'
+  | 'HIGH_LEFT'
+  | 'HIGH_RIGHT'
+  | 'LOW_LEFT'
+  | 'LOW_RIGHT'
+  | 'SPIT_OUT'
+
+/**
+ * A single putt as the server projection returns it (see backend/projections/putts.py).
+ * Today `number`/`miss_type` are always null (shadow data a non-opted-in user can't
+ * fill in); nothing renders these rows yet.
+ */
+export interface Putt {
+  putt_id: string
+  batch_id: string
+  number: number | null
+  made: boolean
+  miss_type: MissType | null
+  created_at: string
+}
+
 // The daily test: 5 putts from every distance in [TEST_MIN, TEST_MAX] inclusive.
 export const TEST_MIN = 12
 export const TEST_MAX = 33

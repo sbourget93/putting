@@ -17,6 +17,7 @@ import { SyncProvider } from './SyncEngine'
 import { useSync } from './SyncContext'
 import { newEvent } from './commands'
 import { batchesDescriptor } from './aggregates/batches'
+import { puttsDescriptor } from './aggregates/putts'
 import { testsDescriptor } from './aggregates/tests'
 import { baselineDescriptor } from './aggregates/baseline'
 import { usersDescriptor, useUsers } from './aggregates/users'
@@ -28,6 +29,7 @@ import type { AggregateDescriptor } from './types'
 const AGGREGATES: AggregateDescriptor<any>[] = [
   testsDescriptor,
   batchesDescriptor,
+  puttsDescriptor,
   baselineDescriptor,
   usersDescriptor,
 ]

@@ -11,12 +11,13 @@
  * with history, no matter how long someone has been putting.
  */
 import { fetchWithTimeout } from '../../lib/http'
-import { localDay, type Batch, type DistanceStat, type Test } from '../../lib/putting'
+import { localDay, type Batch, type DistanceStat, type MissType, type Putt, type Test } from '../../lib/putting'
 
 export interface DailyPayload {
   version: number
   test: Test | null
   today_batches: Batch[]
+  today_putts: Putt[]
   baseline: DistanceStat[]
 }
 
@@ -28,6 +29,18 @@ export function toBatch(raw: Batch): Batch {
     distance: raw.distance,
     batch_size: raw.batch_size,
     made: raw.made,
+    created_at: raw.created_at,
+  }
+}
+
+/** Normalize a raw server putt row into a Putt (made arrives as 0/1, coerced to bool). */
+export function toPutt(raw: Putt): Putt {
+  return {
+    putt_id: raw.putt_id,
+    batch_id: raw.batch_id,
+    number: raw.number ?? null,
+    made: !!raw.made,
+    miss_type: (raw.miss_type ?? null) as MissType | null,
     created_at: raw.created_at,
   }
 }
