@@ -1,0 +1,80 @@
+/* The miss picker reuses the shared modal shell (.modal / .modal-backdrop in
+   PuttEditModal.css) and the daily-prompt header (.prompt-label / .prompt-sub). */
+.miss-modal {
+  text-align: center;
+}
+
+.miss-sub {
+  margin: 0.1rem 0 1rem;
+}
+
+/* The basket image and the grid overlay share one square box so the grid lines up
+   with the basket beneath it. */
+.miss-target {
+  position: relative;
+  width: 100%;
+  max-width: 20rem;
+  margin: 0 auto;
+  aspect-ratio: 1 / 1;
+}
+
+.miss-basket {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* The soft 3×3 grid laid over the basket: faint dividers, so the basket reads
+   through it and the cells still feel tappable. */
+.miss-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  border-radius: 0.8rem;
+  overflow: hidden;
+}
+
+.miss-cell {
+  border: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
+  background: transparent;
+  cursor: pointer;
+  /* Each cell is at least a third of the 20rem box, comfortably past 44px. */
+}
+
+/* A faint red flash on press, so a tap confirms before it commits. */
+.miss-cell:active {
+  background: color-mix(in srgb, #ef4444 22%, transparent);
+}
+
+/* The chosen cell: a red overlay over that spot on the basket, the only marker of
+   where the putt missed. Reopening the slot shows it over the current pick. */
+.miss-cell.selected {
+  background: color-mix(in srgb, #ef4444 48%, transparent);
+  border-color: color-mix(in srgb, #ef4444 65%, transparent);
+}
+
+/* The two actions share the row evenly, so Cancel and the made button line up as a
+   balanced pair rather than bunching at the right. */
+.miss-modal-actions .btn {
+  flex: 1 1 0;
+}
+
+/* "It went in!" is the positive escape hatch: green, matching the made putt slots. */
+.miss-made-btn {
+  background: #16a34a;
+  color: #fff;
+  border-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .miss-cell:active {
+    background: transparent;
+    color: inherit;
+  }
+}

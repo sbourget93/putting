@@ -12,13 +12,14 @@
  * Editing was removed for now.
  */
 import { useMemo, useRef, useState } from 'react'
-import { useUserHistory, useUsers } from '../lib/useUserHistory'
+import { useUserHistory, useUserMisses, useUsers } from '../lib/useUserHistory'
 import { useGlobalStats } from '../lib/useGlobalStats'
 import { useLeaderboard } from '../lib/useLeaderboard'
 import { seriesColor } from '../lib/seriesColors'
 import StatsChartPanel from '../components/StatsChartPanel'
 import PlayerCombobox from '../components/PlayerCombobox'
 import PercentTrendChart from '../components/PercentTrendChart'
+import MissHeatBasket from '../components/MissHeatBasket'
 import {
   isTestComplete,
   overallPct,
@@ -81,6 +82,9 @@ function HistoryPage() {
   // Whose history is on screen, fetched online on demand: the picker's choice, or
   // the default owner (your own if admin, else the demo owner) when none is picked.
   const { tests, batches, ownerSub, ownerName, loading, error } = useUserHistory(selectedSub)
+  // The viewed player's miss distribution, fetched online like the rest of the page.
+  // Resolved server-side from the same selectedSub, complete tests only.
+  const { counts: missCounts, total: missTotal } = useUserMisses(selectedSub)
   const { global: globalStats } = useGlobalStats()
   const viewingSub = selectedSub ?? ownerSub
 
@@ -283,6 +287,7 @@ function HistoryPage() {
             />
           </div>
         )}
+        {missTotal > 0 && <MissHeatBasket counts={missCounts} total={missTotal} />}
         <ul className="history-list">
           {entries.map((entry) => {
             const isOpen = expanded.has(entry.key)

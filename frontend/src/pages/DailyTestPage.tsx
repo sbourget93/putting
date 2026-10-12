@@ -15,14 +15,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSync } from '../offline/SyncContext'
 import { usePutts } from '../offline/aggregates/putts'
+import { useUserSettings } from '../offline/aggregates/userSettings'
 import { newEvent } from '../offline/commands'
 import type { CommandEvent } from '../offline/types'
 import { usePuttingData } from '../lib/usePuttingData'
 import StatsChartPanel from '../components/StatsChartPanel'
 import PuttEditModal from '../components/PuttEditModal'
 import PuttDeleteModal from '../components/PuttDeleteModal'
+import MissPrompt from '../components/MissPrompt'
+import MissEditModal from '../components/MissEditModal'
 import {
+  MISS_GLYPH,
+  MISS_LABELS,
   TEST_PUTTS,
+  TRACK_MISSES,
   localDay,
   nextTestDistance,
   overallPct,
@@ -30,6 +36,7 @@ import {
   remainingTestDistances,
   testBatches,
   type Batch,
+  type MissType,
   type Putt,
 } from '../lib/putting'
 import './DailyTestPage.css'
@@ -37,9 +44,14 @@ import './DailyTestPage.css'
 function DailyTestPage() {
   const { enqueue } = useSync()
   const putts = usePutts()
+  const settings = useUserSettings()
   const { test, todayBatches, baselineStats, readOnly, loading, error } = usePuttingData()
   const [editing, setEditing] = useState<Batch | null>(null)
   const [deleting, setDeleting] = useState<Batch | null>(null)
+
+  // Opt-in miss tracking swaps the count buttons for the per-putt miss entry. The
+  // setting is a writer's own preference, so a read-only viewer never has it set.
+  const trackMisses = settings.find((s) => s.name === TRACK_MISSES)?.value ?? false
 
   const today = localDay()
   const testId = test?.test_id ?? null
@@ -49,6 +61,18 @@ function DailyTestPage() {
     [todayBatches, testId],
   )
   const todays = useMemo(() => testBatches(todayBatches, testId), [todayBatches, testId])
+
+  // The miss directions per batch, for the summary's miss icons. Only misses with a
+  // known direction count: a count-mode user's misses have no miss_type, so their
+  // batches simply show no icons. Exact putt order doesn't matter here.
+  const missesByBatch = useMemo(() => {
+    const map: Record<string, MissType[]> = {}
+    for (const p of putts) {
+      if (p.made || !p.miss_type) continue
+      ;(map[p.batch_id] ??= []).push(p.miss_type)
+    }
+    return map
+  }, [putts])
 
   // Lifetime baseline arrives pre-aggregated by distance (excluding today), so the
   // summary and the chart's grey line compare today against history, not itself.
@@ -77,7 +101,12 @@ function DailyTestPage() {
     }
   }, [doneDistances])
 
-  function record(made: number) {
+  // Record the current distance's batch and its putts in one atomic command. The
+  // made count is derived from the putts, so BatchRecorded and its PuttRecorded rows
+  // always agree. Starts today's test first if this is the day's first putt.
+  function recordBatch(
+    puttData: { made: boolean; number: number | null; miss_type: MissType | null }[],
+  ) {
     if (current == null) return
     // Already recorded (snapshot has it) or in flight (tapped, awaiting confirm).
     if (doneDistances.has(current) || recordedRef.current.has(current)) return
@@ -94,22 +123,39 @@ function DailyTestPage() {
         test_id: id,
         distance: current,
         batch_size: TEST_PUTTS,
-        made,
+        made: puttData.filter((p) => p.made).length,
       }),
     )
-    // Shadow putts: one PuttRecorded per putt in the same atomic command, `made` of
-    // them made. number/miss_type are unknown for a non-opted-in user, so null.
-    for (let i = 0; i < TEST_PUTTS; i++) {
+    for (const p of puttData) {
       events.push(
         newEvent('PuttRecorded', crypto.randomUUID(), {
           batch_id: batchId,
-          made: i < made,
-          number: null,
-          miss_type: null,
+          made: p.made,
+          number: p.number,
+          miss_type: p.miss_type,
         }),
       )
     }
     enqueue(events)
+  }
+
+  // Count mode: the user gives only a made count, so the first `made` putts are made
+  // and the rest missed. Position and direction are unknown, so number/miss_type
+  // stay null (shadow putts) — see documentation/models/projections/putts.md.
+  function record(made: number) {
+    recordBatch(
+      Array.from({ length: TEST_PUTTS }, (_, i) => ({
+        made: i < made,
+        number: null,
+        miss_type: null,
+      })),
+    )
+  }
+
+  // Miss mode: the user marks each putt made or missed and, for a miss, where. The
+  // putt's number is its slot position (1-based), filled in for an opted-in user.
+  function recordMisses(puttData: { made: boolean; miss_type: MissType | null }[]) {
+    recordBatch(puttData.map((p, i) => ({ made: p.made, number: i + 1, miss_type: p.miss_type })))
   }
 
   // A batch's shadow putts, in a stable order so edit/delete target them
@@ -146,6 +192,37 @@ function DailyTestPage() {
         )
       }
     })
+    enqueue(events)
+  }
+
+  // Miss-mode correction: the user re-marks each putt (made, or missed and where).
+  // The new made count reconciles the batch; a PuttEdited goes out only for a putt
+  // whose made or direction actually changed. number is fixed, so it carries through.
+  function saveMissEdit(
+    updated: { putt_id: string; made: boolean; miss_type: MissType | null }[],
+  ) {
+    if (!editing) return
+    const before = new Map(puttsForBatch(editing.batch_id).map((p) => [p.putt_id, p]))
+    const events: CommandEvent[] = [
+      newEvent('BatchEdited', editing.batch_id, {
+        distance: editing.distance,
+        batch_size: editing.batch_size,
+        made: updated.filter((p) => p.made).length,
+      }),
+    ]
+    for (const p of updated) {
+      const prev = before.get(p.putt_id)
+      if (!prev) continue
+      if (prev.made !== p.made || prev.miss_type !== p.miss_type) {
+        events.push(
+          newEvent('PuttEdited', p.putt_id, {
+            made: p.made,
+            number: prev.number,
+            miss_type: p.miss_type,
+          }),
+        )
+      }
+    }
     enqueue(events)
   }
 
@@ -204,35 +281,59 @@ function DailyTestPage() {
           <p className="prompt-distance">
             {current} <span className="unit">ft</span>
           </p>
-          <p className="prompt-sub">How many did you make?</p>
-          <div className="made-buttons">
-            {Array.from({ length: TEST_PUTTS + 1 }, (_, n) => (
-              <button
-                key={n}
-                type="button"
-                className="made-btn"
-                disabled={readOnly}
-                onClick={() => record(n)}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
+          {trackMisses ? (
+            // Keyed on the distance so each new prompt starts from a clean
+            // five-made slate instead of carrying the last distance's misses.
+            <MissPrompt
+              key={current ?? 'done'}
+              distance={current as number}
+              disabled={readOnly}
+              onRecord={recordMisses}
+            />
+          ) : (
+            <>
+              <p className="prompt-sub">How many did you make?</p>
+              <div className="made-buttons">
+                {Array.from({ length: TEST_PUTTS + 1 }, (_, n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className="made-btn"
+                    disabled={readOnly}
+                    onClick={() => record(n)}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
       {todays.length > 0 && (
         <TodayBatches
           batches={todays}
+          missesByBatch={missesByBatch}
           editable={!readOnly}
           onEdit={setEditing}
           onDelete={setDeleting}
         />
       )}
 
-      {editing && (
-        <PuttEditModal batch={editing} onClose={() => setEditing(null)} onPick={saveEdit} />
-      )}
+      {editing &&
+        (trackMisses ? (
+          // Edit mode follows the user's current preference, not how the batch was
+          // originally recorded: a miss-tracker always gets the per-putt editor.
+          <MissEditModal
+            batch={editing}
+            putts={puttsForBatch(editing.batch_id)}
+            onClose={() => setEditing(null)}
+            onSave={saveMissEdit}
+          />
+        ) : (
+          <PuttEditModal batch={editing} onClose={() => setEditing(null)} onPick={saveEdit} />
+        ))}
 
       {deleting && (
         <PuttDeleteModal
@@ -284,11 +385,13 @@ function CompleteSummary({
  */
 function TodayBatches({
   batches,
+  missesByBatch,
   editable,
   onEdit,
   onDelete,
 }: {
   batches: Batch[]
+  missesByBatch: Record<string, MissType[]>
   editable: boolean
   onEdit: (batch: Batch) => void
   onDelete: (batch: Batch) => void
@@ -298,10 +401,26 @@ function TodayBatches({
     <div className="panel today-batches">
       <h2 className="section-title">Today's putts</h2>
       <ul className="batch-lines">
-        {ordered.map((b) => (
+        {ordered.map((b) => {
+          const misses = missesByBatch[b.batch_id] ?? []
+          return (
           <li key={b.batch_id} className="batch-line">
             <span className="batch-line-dist">{b.distance}′</span>
             <span className="batch-line-made">{b.made}/{b.batch_size}</span>
+            <span
+              className="batch-line-misses"
+              aria-label={
+                misses.length
+                  ? `Missed ${misses.map((m) => MISS_LABELS[m].toLowerCase()).join(', ')}`
+                  : undefined
+              }
+            >
+              {misses.map((m, i) => (
+                <span key={i} className="miss-icon" aria-hidden="true">
+                  {MISS_GLYPH[m]}
+                </span>
+              ))}
+            </span>
             {editable && (
               <span className="batch-line-actions">
                 <button
@@ -327,7 +446,8 @@ function TodayBatches({
               </span>
             )}
           </li>
-        ))}
+          )
+        })}
       </ul>
     </div>
   )

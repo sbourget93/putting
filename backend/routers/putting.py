@@ -134,6 +134,44 @@ def get_tests(request: Request, sub: str | None = None):
     }
 
 
+@router.get("/misses")
+def get_misses(request: Request, sub: str | None = None):
+    """The resolved owner's missed putts grouped by location (miss_type).
+
+    Owner-scoped like /batches, with the same optional ?sub= to browse another
+    player. Only tracked misses count: a putt that was missed (made = 0) and has a
+    recorded direction. Restricted to complete tests, like /stats and the graphs, so
+    the distribution matches what the profile's charts are built from. Returns a
+    `counts` map keyed by miss_type and the `total`; empty for a player who has
+    tracked none. The nine miss types are documented in projections/putts.md.
+    """
+    with db.read() as conn:
+        owner = _resolve_owner(conn, request, sub)
+        if owner is None:
+            raise HTTPException(status_code=404, detail="Unknown user")
+        rows = conn.execute(
+            "SELECT p.miss_type AS miss_type, COUNT(*) AS n "
+            "FROM putts p "
+            "JOIN batches b ON b.batch_id = p.batch_id AND b.owner_sub = p.owner_sub "
+            "WHERE p.owner_sub = ? AND p.deleted_at IS NULL "
+            "AND p.made = 0 AND p.miss_type IS NOT NULL "
+            "AND b.deleted_at IS NULL "
+            f"AND b.test_id IN ({COMPLETE_TESTS_SUBQUERY}) "
+            "GROUP BY p.miss_type",
+            (owner,),
+        ).fetchall()
+        owner_sub, owner_name = owner, _owner_name(conn, owner)
+        version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
+    counts = {r["miss_type"]: r["n"] for r in rows}
+    return {
+        "version": version,
+        "owner_sub": owner_sub,
+        "owner_name": owner_name,
+        "total": sum(counts.values()),
+        "counts": counts,
+    }
+
+
 @router.get("/daily")
 def get_daily(request: Request, day: str | None = None):
     """The compact payload the Daily Putts page needs, for one local day.
