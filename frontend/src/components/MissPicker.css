@@ -44,6 +44,8 @@
   border: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
   background: transparent;
   cursor: pointer;
+  /* No mobile tap-highlight flash; the red selection overlay is the only marker. */
+  -webkit-tap-highlight-color: transparent;
   /* Each cell is at least a third of the 20rem box, comfortably past 44px. */
 }
 
