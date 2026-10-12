@@ -43,5 +43,10 @@ The instance reads its login secrets from SSM Parameter Store at boot. These are
 | `<secrets_path>/session_secret` | Yes | Signs the session cookie; keep stable across releases. Deploy refuses without it. |
 | `<secrets_path>/admin_emails` | No | Comma-separated admin allowlist. |
 
+## Deployment
+`./local/deploy.sh {qa|prod}` deploys the terraform stack for the application. QA and prod both run the code on `main`. Pass `-auto-approve` for a non-interactive run.
+Assume dependencies are met (terraform init, AWS creds, TF_VAR_certbot_email, etc.). Only investigate these if a run fails.
+Deploys replace the running instance, this is intended behavior. Confirm with the developer before proceeding with a prod deployment, but QA is fine to roll out entirely with no confirmations beyond the initial request.
+
 ## Debugging
 Connect to the production instance with ssh -i `<app>.pem ubuntu@<app>.stephengb.com`.
