@@ -14,8 +14,14 @@ Needs httpx (requirements-dev.txt), so it runs in the backend container:
 import os
 import tempfile
 import unittest
+from datetime import datetime, timezone
 
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test-client-id")
+
+# Owner-scoped admin tables are windowed to the last DATA_WINDOW_DAYS by created_at,
+# so fixtures must be stamped recently or they fall out of the window as real time
+# advances. Computed at import (tests run moments later), never a fixed literal.
+RECENT = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 import auth  # noqa: E402
 import db  # noqa: E402
@@ -81,7 +87,7 @@ class AdminTablesTest(unittest.TestCase):
                         "type": "UserSignedIn",
                         "aggregate_id": sub,
                         "data": {"name": name, "picture": None},
-                        "created_at": "2026-08-22T00:00:00Z",
+                        "created_at": RECENT,
                     }
                 ]
             },
@@ -97,7 +103,7 @@ class AdminTablesTest(unittest.TestCase):
                         "type": "BatchRecorded",
                         "aggregate_id": batch_id,
                         "data": {"distance": 25, "batch_size": 10, "made": 8},
-                        "created_at": "2026-08-22T00:00:00Z",
+                        "created_at": RECENT,
                     }
                 ]
             },

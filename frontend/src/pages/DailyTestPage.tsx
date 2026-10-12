@@ -14,6 +14,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSync } from '../offline/SyncContext'
+import { usePutts } from '../offline/aggregates/putts'
 import { newEvent } from '../offline/commands'
 import type { CommandEvent } from '../offline/types'
 import { usePuttingData } from '../lib/usePuttingData'
@@ -29,11 +30,13 @@ import {
   remainingTestDistances,
   testBatches,
   type Batch,
+  type Putt,
 } from '../lib/putting'
 import './DailyTestPage.css'
 
 function DailyTestPage() {
   const { enqueue } = useSync()
+  const putts = usePutts()
   const { test, todayBatches, baselineStats, readOnly, loading, error } = usePuttingData()
   const [editing, setEditing] = useState<Batch | null>(null)
   const [deleting, setDeleting] = useState<Batch | null>(null)
@@ -85,28 +88,65 @@ function DailyTestPage() {
       id = crypto.randomUUID()
       events.push(newEvent('TestStarted', id, { test_date: today }))
     }
+    const batchId = crypto.randomUUID()
     events.push(
-      newEvent('BatchRecorded', crypto.randomUUID(), {
+      newEvent('BatchRecorded', batchId, {
         test_id: id,
         distance: current,
         batch_size: TEST_PUTTS,
         made,
       }),
     )
+    // Shadow putts: one PuttRecorded per putt in the same atomic command, `made` of
+    // them made. number/miss_type are unknown for a non-opted-in user, so null.
+    for (let i = 0; i < TEST_PUTTS; i++) {
+      events.push(
+        newEvent('PuttRecorded', crypto.randomUUID(), {
+          batch_id: batchId,
+          made: i < made,
+          number: null,
+          miss_type: null,
+        }),
+      )
+    }
     enqueue(events)
+  }
+
+  // A batch's shadow putts, in a stable order so edit/delete target them
+  // deterministically. They're indistinguishable (number is null), so putt_id order
+  // is as good as any. Empty for batches recorded before putts existed.
+  function puttsForBatch(batchId: string): Putt[] {
+    return putts
+      .filter((p) => p.batch_id === batchId)
+      .sort((a, b) => a.putt_id.localeCompare(b.putt_id))
   }
 
   // Fat-finger correction: rewrite one batch's made count in place. Distance and
   // size are fixed test slots, so they carry through unchanged.
   function saveEdit(made: number) {
     if (!editing) return
-    enqueue([
+    const events: CommandEvent[] = [
       newEvent('BatchEdited', editing.batch_id, {
         distance: editing.distance,
         batch_size: editing.batch_size,
         made,
       }),
-    ])
+    ]
+    // Reconcile the shadow putts to the new count: the first `made` are made, the
+    // rest misses. Only emit for a putt whose made value actually changes.
+    puttsForBatch(editing.batch_id).forEach((p, i) => {
+      const shouldMake = i < made
+      if (p.made !== shouldMake) {
+        events.push(
+          newEvent('PuttEdited', p.putt_id, {
+            made: shouldMake,
+            number: p.number,
+            miss_type: p.miss_type,
+          }),
+        )
+      }
+    })
+    enqueue(events)
   }
 
   // Remove a recorded putt, after the confirm dialog. The server stamps the owner,
@@ -114,7 +154,12 @@ function DailyTestPage() {
   // re-enters the prompt queue and can be recorded again.
   function deletePutt() {
     if (!deleting) return
-    enqueue([newEvent('BatchDeleted', deleting.batch_id)])
+    const events: CommandEvent[] = [newEvent('BatchDeleted', deleting.batch_id)]
+    // Soft-delete the batch's shadow putts alongside it (owner stamped server-side).
+    for (const p of puttsForBatch(deleting.batch_id)) {
+      events.push(newEvent('PuttDeleted', p.putt_id))
+    }
+    enqueue(events)
     setDeleting(null)
   }
 

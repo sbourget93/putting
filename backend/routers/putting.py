@@ -144,6 +144,9 @@ def get_daily(request: Request, day: str | None = None):
 
       - `test`          — that day's daily test (test_id, test_date) or null.
       - `today_batches` — the day's test batches (at most one per distance).
+      - `today_putts`   — the individual putts under those batches (shadow data,
+                          five per batch; see projections/putts.py). Bounded by the
+                          batches, so it stays small like the rest of this payload.
       - `baseline`      — the player's make-% by distance over their *complete* past
                           tests, excluding today, so today's putts are compared
                           against history, not themselves. This is the chart's grey
@@ -163,6 +166,7 @@ def get_daily(request: Request, day: str | None = None):
         test = {"test_id": test_row["test_id"], "test_date": test_row["test_date"]} if test_row else None
 
         today_batches: list[dict] = []
+        today_putts: list[dict] = []
         if test:
             today_batches = [
                 dict(r)
@@ -171,6 +175,20 @@ def get_daily(request: Request, day: str | None = None):
                     "FROM batches "
                     "WHERE owner_sub = ? AND test_id = ? AND deleted_at IS NULL "
                     "ORDER BY created_at",
+                    (owner, test["test_id"]),
+                ).fetchall()
+            ]
+            # The putts under those batches, joined to the day's test so the set is
+            # bounded by today's batches rather than the whole putt log.
+            today_putts = [
+                dict(r)
+                for r in conn.execute(
+                    "SELECT p.putt_id, p.batch_id, p.number, p.made, p.miss_type, p.created_at "
+                    "FROM putts p "
+                    "JOIN batches b ON b.batch_id = p.batch_id AND b.owner_sub = p.owner_sub "
+                    "WHERE p.owner_sub = ? AND b.test_id = ? "
+                    "AND p.deleted_at IS NULL AND b.deleted_at IS NULL "
+                    "ORDER BY p.created_at",
                     (owner, test["test_id"]),
                 ).fetchall()
             ]
@@ -198,7 +216,13 @@ def get_daily(request: Request, day: str | None = None):
 
         version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
 
-    return {"version": version, "test": test, "today_batches": today_batches, "baseline": baseline}
+    return {
+        "version": version,
+        "test": test,
+        "today_batches": today_batches,
+        "today_putts": today_putts,
+        "baseline": baseline,
+    }
 
 
 def global_average(users: list[dict]) -> list[dict]:
