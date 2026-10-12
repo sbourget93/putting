@@ -12,7 +12,7 @@
  */
 import { useEffect, useState } from 'react'
 import { fetchWithTimeout } from './http'
-import type { AppUser, Batch, Test } from './putting'
+import type { AppUser, Batch, MissType, Test } from './putting'
 
 export interface UsersData {
   users: AppUser[]
@@ -102,6 +102,57 @@ export function useUserHistory(sub: string | null): UserHistoryData {
             ownerSub: bBody.owner_sub,
             ownerName: bBody.owner_name,
           })
+          setError(null)
+        }
+      } catch (cause) {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause))
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [sub])
+
+  return { ...data, loading, error }
+}
+
+export interface UserMissesData {
+  /** Missed putts per location; a location the player never missed to is absent. */
+  counts: Partial<Record<MissType, number>>
+  total: number
+  loading: boolean
+  error: string | null
+}
+
+/**
+ * One player's missed putts grouped by location (GET /api/misses), complete tests
+ * only, fetched online like the rest of the profile. `sub = null` resolves the
+ * default owner server-side, matching useUserHistory.
+ */
+export function useUserMisses(sub: string | null): UserMissesData {
+  const [data, setData] = useState<{ counts: Partial<Record<MissType, number>>; total: number }>({
+    counts: {},
+    total: 0,
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    const q = sub ? `?sub=${encodeURIComponent(sub)}` : ''
+    void (async () => {
+      try {
+        const res = await fetchWithTimeout(`/api/misses${q}`)
+        if (!res.ok) throw new Error(`Could not load misses (${res.status})`)
+        const body = (await res.json()) as {
+          counts: Partial<Record<MissType, number>>
+          total: number
+        }
+        if (!cancelled) {
+          setData({ counts: body.counts, total: body.total })
           setError(null)
         }
       } catch (cause) {

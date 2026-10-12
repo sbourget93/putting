@@ -56,6 +56,47 @@ export type MissType =
   | 'SPIT_OUT'
 
 /**
+ * The nine miss types laid out as the 3×3 grid the miss picker draws over the
+ * basket: row by row, top-left to bottom-right. The centre is SPIT_OUT (the putt
+ * hit the basket and popped out); the eight surrounding cells are the direction the
+ * putt missed. Reused by the picker (the grid) and the slot indicator (its glyph).
+ */
+export const MISS_GRID: readonly (readonly MissType[])[] = [
+  ['HIGH_LEFT', 'HIGH', 'HIGH_RIGHT'],
+  ['LEFT', 'SPIT_OUT', 'RIGHT'],
+  ['LOW_LEFT', 'LOW', 'LOW_RIGHT'],
+]
+
+/** Human label for each miss, for accessible names and the slot indicator. */
+export const MISS_LABELS: Record<MissType, string> = {
+  HIGH_LEFT: 'High left',
+  HIGH: 'High',
+  HIGH_RIGHT: 'High right',
+  LEFT: 'Left',
+  SPIT_OUT: 'Spit-out',
+  RIGHT: 'Right',
+  LOW_LEFT: 'Low left',
+  LOW: 'Low',
+  LOW_RIGHT: 'Low right',
+}
+
+/**
+ * The glyph for a recorded miss slot: an arrow pointing the way the putt missed,
+ * and a sad face for a spit-out. Shown on the red slot button in the daily prompt.
+ */
+export const MISS_GLYPH: Record<MissType, string> = {
+  HIGH_LEFT: '↖',
+  HIGH: '↑',
+  HIGH_RIGHT: '↗',
+  LEFT: '←',
+  SPIT_OUT: '☹',
+  RIGHT: '→',
+  LOW_LEFT: '↙',
+  LOW: '↓',
+  LOW_RIGHT: '↘',
+}
+
+/**
  * A single putt as the server projection returns it (see backend/projections/putts.py).
  * Today `number`/`miss_type` are always null (shadow data a non-opted-in user can't
  * fill in); nothing renders these rows yet.

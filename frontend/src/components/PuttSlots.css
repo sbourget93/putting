@@ -1,0 +1,44 @@
+/* The five putt slots, one per putt in the test, laid out in a row. Shared by the
+   daily miss prompt (MissPrompt) and the miss-aware edit modal (MissEditModal). */
+.putt-slots {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.putt-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  border: 1px solid transparent;
+  border-radius: 0.7rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.putt-slot-mark {
+  font-size: 1.8rem;
+  line-height: 1;
+  font-weight: 700;
+}
+
+/* Made: a green button with a white check, the default for every slot. */
+.putt-slot.made {
+  background: #16a34a;
+  color: #fff;
+}
+
+/* Missed: a soft red background with the direction glyph, so a corrected slot
+   reads clearly as "this one missed". */
+.putt-slot.miss {
+  background: color-mix(in srgb, #ef4444 16%, Canvas);
+  border-color: color-mix(in srgb, #ef4444 40%, Canvas);
+  color: #b3261e;
+}
+
+.putt-slot:disabled {
+  cursor: default;
+  opacity: 0.6;
+}

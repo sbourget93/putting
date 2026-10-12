@@ -137,8 +137,24 @@
 }
 
 .batch-line-made {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   color: color-mix(in srgb, CanvasText 60%, Canvas);
+}
+
+/* The missed putts for this batch, as direction glyphs right after the count. The
+   span always renders (it grows to push the edit/delete cluster to the right),
+   staying empty for a batch with no tracked misses. */
+.batch-line-misses {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  /* One more space than the row's own 0.8rem gap, so the icons sit a touch further
+     from the count than the count does from the distance. */
+  margin-left: 0.8rem;
+  gap: 0.3rem;
+  color: color-mix(in srgb, CanvasText 60%, Canvas);
+  font-size: 1.05rem;
+  line-height: 1;
 }
 
 .batch-line-actions {

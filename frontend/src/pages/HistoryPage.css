@@ -169,6 +169,12 @@
   font-size: 0.85rem;
 }
 
+/* Centre every section heading on the profile page (trend, by-distance, miss
+   distribution). Scoped to .history so the shared class stays left elsewhere. */
+.history .section-title {
+  text-align: center;
+}
+
 .history-trend {
   margin-bottom: 1rem;
   padding-bottom: 0.5rem;
