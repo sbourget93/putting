@@ -21,4 +21,4 @@ These are the values populating the `key` field in this table. These will always
 
 ## Relationships
 
-- References one `event`.
+- References one [event](./events.md).
