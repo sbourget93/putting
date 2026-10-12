@@ -44,11 +44,9 @@ The instance reads its login secrets from SSM Parameter Store at boot. These are
 | `<secrets_path>/admin_emails` | No | Comma-separated admin allowlist. |
 
 ## Deployment
-`./local/deploy.sh {qa|prod}` selects the Terraform workspace and recreates the EC2 instance, which re-clones `main` at boot and rebuilds, so merge to `main` first.
-Pass `-auto-approve` for a non-interactive run.
-Deploy QA without asking as long as the plan shows `0 to destroy`; confirm first for `prod` or any destroy.
-Assume Terraform is initialized, the workspaces exist, AWS creds are set, and `TF_VAR_certbot_email` is exported; only investigate these if a run fails.
-A finished `apply` only creates the resources; the box then clones, builds, and runs certbot, so https://putting-qa.stephengb.com answers a few minutes later (HTTPS last).
+`./local/deploy.sh {qa|prod}` deploys the terraform stack for the application. QA and prod both run the code on `main`. Pass `-auto-approve` for a non-interactive run.
+Assume dependencies are met (terraform init, AWS creds, TF_VAR_certbot_email, etc.). Only investigate these if a run fails.
+Deploys replace the running instance, this is intended behavior. Confirm with the developer before proceeding with a prod deployment, but QA is fine to roll out entirely with no confirmations beyond the initial request.
 
 ## Debugging
 Connect to the production instance with ssh -i `<app>.pem ubuntu@<app>.stephengb.com`.
