@@ -38,10 +38,15 @@
   grid-template-rows: repeat(3, 1fr);
   border-radius: 0.8rem;
   overflow: hidden;
+  /* A solid outer frame so the grid stands apart from the basket behind it, even at
+     low brightness / battery-saver dimming. */
+  border: 2px solid color-mix(in srgb, CanvasText 55%, Canvas);
 }
 
 .miss-cell {
-  border: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
+  /* Noticeably stronger than the old faint lines, so the 3×3 reads as a grid rather
+     than disappearing into the basket art. */
+  border: 1.5px solid color-mix(in srgb, CanvasText 45%, Canvas);
   background: transparent;
   cursor: pointer;
   /* No mobile tap-highlight flash; the red selection overlay is the only marker. */
