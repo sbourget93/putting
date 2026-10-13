@@ -4,14 +4,16 @@
  * `useUsers` lists the known players for the picker (public GET /api/users, keyed
  * by the stable Google `sub`, never an email). `useUserHistory` fetches one
  * player's full tests and batches online (GET /api/tests, /api/batches, with an
- * optional `?sub=`).
+ * optional `?sub=`). `useUserMisses` fetches their miss distribution.
  *
  * These are online reads by design: History is not cached on the device (only
  * Daily Putts is), so it fetches on demand whether you are viewing your own
- * history or someone else's.
+ * history or someone else's. They go through useResilientFetch, so a blip retries
+ * and a failed load heals on reconnect / when the app regains visibility instead
+ * of leaving the page blank until a manual reload.
  */
-import { useEffect, useState } from 'react'
 import { fetchWithTimeout } from './http'
+import { useResilientFetch } from './useResilientFetch'
 import type { AppUser, Batch, MissType, Test } from './putting'
 
 export interface UsersData {
@@ -22,34 +24,14 @@ export interface UsersData {
 
 /** Every known player identity, for the "whose history" picker. */
 export function useUsers(): UsersData {
-  const [users, setUsers] = useState<AppUser[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    void (async () => {
-      try {
-        const res = await fetchWithTimeout('/api/users')
-        if (!res.ok) throw new Error(`Could not load players (${res.status})`)
-        const body = (await res.json()) as { users: AppUser[] }
-        if (!cancelled) {
-          setUsers(body.users)
-          setError(null)
-        }
-      } catch (cause) {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause))
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
+  const { data, loading, error } = useResilientFetch<AppUser[]>(async () => {
+    const res = await fetchWithTimeout('/api/users')
+    if (!res.ok) throw new Error(`Could not load players (${res.status})`)
+    const body = (await res.json()) as { users: AppUser[] }
+    return body.users
   }, [])
 
-  return { users, loading, error }
+  return { users: data ?? [], loading, error }
 }
 
 export interface UserHistoryData {
@@ -68,54 +50,36 @@ export interface UserHistoryData {
  * admin, else the demo owner — so History can default to whoever is viewing.
  */
 export function useUserHistory(sub: string | null): UserHistoryData {
-  const [data, setData] = useState<{
-    tests: Test[]
-    batches: Batch[]
-    ownerSub: string | null
-    ownerName: string | null
-  }>({ tests: [], batches: [], ownerSub: null, ownerName: null })
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
+  const { data, loading, error } = useResilientFetch(async () => {
     const q = sub ? `?sub=${encodeURIComponent(sub)}` : ''
-    void (async () => {
-      try {
-        const [tRes, bRes] = await Promise.all([
-          fetchWithTimeout(`/api/tests${q}`),
-          fetchWithTimeout(`/api/batches${q}`),
-        ])
-        if (!tRes.ok) throw new Error(`Could not load tests (${tRes.status})`)
-        if (!bRes.ok) throw new Error(`Could not load batches (${bRes.status})`)
-        const tBody = (await tRes.json()) as { tests: Test[] }
-        const bBody = (await bRes.json()) as {
-          batches: Batch[]
-          owner_sub: string | null
-          owner_name: string | null
-        }
-        if (!cancelled) {
-          setData({
-            tests: tBody.tests,
-            batches: bBody.batches,
-            ownerSub: bBody.owner_sub,
-            ownerName: bBody.owner_name,
-          })
-          setError(null)
-        }
-      } catch (cause) {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause))
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
+    const [tRes, bRes] = await Promise.all([
+      fetchWithTimeout(`/api/tests${q}`),
+      fetchWithTimeout(`/api/batches${q}`),
+    ])
+    if (!tRes.ok) throw new Error(`Could not load tests (${tRes.status})`)
+    if (!bRes.ok) throw new Error(`Could not load batches (${bRes.status})`)
+    const tBody = (await tRes.json()) as { tests: Test[] }
+    const bBody = (await bRes.json()) as {
+      batches: Batch[]
+      owner_sub: string | null
+      owner_name: string | null
+    }
+    return {
+      tests: tBody.tests,
+      batches: bBody.batches,
+      ownerSub: bBody.owner_sub,
+      ownerName: bBody.owner_name,
     }
   }, [sub])
 
-  return { ...data, loading, error }
+  return {
+    tests: data?.tests ?? [],
+    batches: data?.batches ?? [],
+    ownerSub: data?.ownerSub ?? null,
+    ownerName: data?.ownerName ?? null,
+    loading,
+    error,
+  }
 }
 
 export interface UserMissesData {
@@ -132,39 +96,12 @@ export interface UserMissesData {
  * default owner server-side, matching useUserHistory.
  */
 export function useUserMisses(sub: string | null): UserMissesData {
-  const [data, setData] = useState<{ counts: Partial<Record<MissType, number>>; total: number }>({
-    counts: {},
-    total: 0,
-  })
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
+  const { data, loading, error } = useResilientFetch(async () => {
     const q = sub ? `?sub=${encodeURIComponent(sub)}` : ''
-    void (async () => {
-      try {
-        const res = await fetchWithTimeout(`/api/misses${q}`)
-        if (!res.ok) throw new Error(`Could not load misses (${res.status})`)
-        const body = (await res.json()) as {
-          counts: Partial<Record<MissType, number>>
-          total: number
-        }
-        if (!cancelled) {
-          setData({ counts: body.counts, total: body.total })
-          setError(null)
-        }
-      } catch (cause) {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause))
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
+    const res = await fetchWithTimeout(`/api/misses${q}`)
+    if (!res.ok) throw new Error(`Could not load misses (${res.status})`)
+    return (await res.json()) as { counts: Partial<Record<MissType, number>>; total: number }
   }, [sub])
 
-  return { ...data, loading, error }
+  return { counts: data?.counts ?? {}, total: data?.total ?? 0, loading, error }
 }
