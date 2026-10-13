@@ -73,6 +73,7 @@ export function SyncProvider({
   const ref = useRef(state)
   const flushingRef = useRef(false)
   const flushRef = useRef<() => Promise<void>>(async () => {})
+  const refreshRef = useRef<() => Promise<void>>(async () => {})
 
   /** Commit new state and persist the mutable slots. */
   const commit = useCallback((patch: Partial<EngineState>) => {
@@ -169,10 +170,30 @@ export function SyncProvider({
   }, [commit, fetchSnapshots])
   flushRef.current = flush
 
+  // The boot / reconnect refresh is tolerant: each aggregate is fetched
+  // independently, so a single failed fetch (common on a flaky connection) can't
+  // discard the whole refresh and leave, say, user_settings stuck at its default.
+  // Whatever succeeds is committed and cached; the rest keep their current snapshot
+  // and get another chance next time. (The post-write refetch in flush stays strict
+  // via fetchSnapshots, where an all-or-nothing confirm is a drain-safety feature.)
   const refresh = useCallback(async () => {
-    const fresh = await fetchSnapshots()
-    if (fresh) commit({ snapshots: fresh.snapshots, version: fresh.version })
-  }, [commit, fetchSnapshots])
+    const results = await Promise.allSettled(
+      aggregates.map(async (a) => [a.name, await a.fetch()] as const),
+    )
+    const snapshots = { ...ref.current.snapshots }
+    let version = ref.current.version
+    let updated = false
+    for (const r of results) {
+      if (r.status !== 'fulfilled') continue
+      const [name, snap] = r.value
+      snapshots[name] = snap
+      version = Math.max(version, snap.version)
+      void db.saveSnapshot(name, snap)
+      updated = true
+    }
+    if (updated) commit({ snapshots, version })
+  }, [aggregates, commit])
+  refreshRef.current = refresh
 
   // Boot: hydrate from IndexedDB (instant, offline-capable), then reconcile with
   // the server and flush anything pending. Only when enabled (admin); otherwise
@@ -205,17 +226,30 @@ export function SyncProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled])
 
-  // Flush on reconnect and on a slow retry timer (covers a flaky connection that
-  // never fires a clean `online` event). Only while enabled.
+  // Recover on reconnect and when the app regains visibility (returning to a
+  // backgrounded tab / PWA): refetch snapshots so a failed boot refresh self-heals
+  // without a manual reload, and flush anything queued. A slow retry timer also
+  // flushes, covering a flaky connection that never fires a clean `online` event.
+  // Only while enabled, and only once booted (loaded) so we never race the hydrate.
   useEffect(() => {
     if (!enabled) return
-    const onOnline = () => void flushRef.current()
+    const kick = () => {
+      if (!ref.current.loaded) return
+      void refreshRef.current()
+      void flushRef.current()
+    }
+    const onOnline = () => kick()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') kick()
+    }
     window.addEventListener('online', onOnline)
+    document.addEventListener('visibilitychange', onVisible)
     const id = window.setInterval(() => {
       if (ref.current.queue.length > 0) void flushRef.current()
     }, RETRY_INTERVAL_MS)
     return () => {
       window.removeEventListener('online', onOnline)
+      document.removeEventListener('visibilitychange', onVisible)
       window.clearInterval(id)
     }
   }, [enabled])

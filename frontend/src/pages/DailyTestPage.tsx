@@ -158,13 +158,20 @@ function DailyTestPage() {
     recordBatch(puttData.map((p, i) => ({ made: p.made, number: i + 1, miss_type: p.miss_type })))
   }
 
-  // A batch's shadow putts, in a stable order so edit/delete target them
-  // deterministically. They're indistinguishable (number is null), so putt_id order
-  // is as good as any. Empty for batches recorded before putts existed.
+  // A batch's putts in a stable order so edit/delete target them deterministically,
+  // and so the editor shows them left-to-right by position. Miss-tracked putts carry
+  // a 1-5 number, which drives the order; older shadow putts have none and fall back
+  // to putt_id (as good as any, since they're indistinguishable). Empty for batches
+  // recorded before putts existed.
   function puttsForBatch(batchId: string): Putt[] {
     return putts
       .filter((p) => p.batch_id === batchId)
-      .sort((a, b) => a.putt_id.localeCompare(b.putt_id))
+      .sort((a, b) => {
+        if (a.number != null && b.number != null) return a.number - b.number
+        if (a.number != null) return -1
+        if (b.number != null) return 1
+        return a.putt_id.localeCompare(b.putt_id)
+      })
   }
 
   // Fat-finger correction: rewrite one batch's made count in place. Distance and
