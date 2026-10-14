@@ -14,7 +14,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useUserHistory, useUserMisses, useUsers } from '../lib/useUserHistory'
 import { useGlobalStats } from '../lib/useGlobalStats'
-import { useLeaderboard } from '../lib/useLeaderboard'
 import { seriesColor } from '../lib/seriesColors'
 import StatsChartPanel from '../components/StatsChartPanel'
 import PlayerCombobox from '../components/PlayerCombobox'
@@ -23,6 +22,7 @@ import MissHeatBasket from '../components/MissHeatBasket'
 import {
   isTestComplete,
   overallPct,
+  overallPctFromStats,
   remainingTestDistances,
   statsByDistance,
   type Batch,
@@ -85,14 +85,13 @@ function HistoryPage() {
   // The viewed player's miss distribution, fetched online like the rest of the page.
   // Resolved server-side from the same selectedSub, complete tests only.
   const { counts: missCounts, total: missTotal } = useUserMisses(selectedSub)
-  const { global: globalStats } = useGlobalStats()
+  // One /stats read carries the all-players average line and every player's all-time
+  // by-distance breakdown, so switching the "compare with" player needs no extra
+  // request.
+  const { global: globalStats, users: allTimeStats } = useGlobalStats()
   const viewingSub = selectedSub ?? ownerSub
 
-  // Every player's all-time by-distance breakdown, for the optional "compare with"
-  // line on the by-distance chart. One read carries all players, so switching the
-  // compare player needs no extra request.
-  const { entries: allTimeEntries } = useLeaderboard()
-  const compareEntry = compareSub ? allTimeEntries.find((e) => e.sub === compareSub) : undefined
+  const compareEntry = compareSub ? allTimeStats.find((e) => e.sub === compareSub) : undefined
   const compareStats = compareEntry?.stats ?? []
   const compareName = users.find((u) => u.sub === compareSub)?.name ?? ''
 
@@ -105,7 +104,8 @@ function HistoryPage() {
   const comparisonColor = compareSub ? COMPARE_ORANGE : ALL_PLAYERS_GREY
   const comparisonPct = useMemo(() => {
     if (compareSub) {
-      return compareEntry ? Math.round(compareEntry.overall_pct) : null
+      const pct = compareEntry ? overallPctFromStats(compareEntry.stats) : null
+      return pct === null ? null : Math.round(pct)
     }
     return globalStats.length
       ? Math.round(globalStats.reduce((sum, g) => sum + g.pct, 0) / globalStats.length)

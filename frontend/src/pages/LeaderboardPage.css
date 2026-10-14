@@ -1,3 +1,32 @@
+/* Mode picker + date picker / description, framed as one card. */
+.board-controls {
+  margin: 0 0 1rem;
+  padding: 0.25rem;
+  border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, CanvasText 3%, Canvas);
+}
+
+/* The second row under the mode pills. A fixed height (matching the date picker's
+   44px controls) holds steady across modes so the board never shifts when the
+   description replaces the picker or back. */
+.board-controls-sub {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 0.25rem;
+}
+
+/* The small gray caption shown in that row on the Average and Best boards. */
+.board-blurb {
+  margin: 0;
+  padding: 0 0.5rem;
+  font-size: 0.8rem;
+  text-align: center;
+  width: 100%;
+  color: color-mix(in srgb, CanvasText 55%, Canvas);
+}
+
 .board-list {
   list-style: none;
   margin: 0;
@@ -52,12 +81,21 @@
 }
 
 .board-name {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Small gray note after the name on the Average ("x sessions included") and Best
+   (the session's date) boards. The name ellipsizes first, so this stays readable. */
+.board-sub {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  color: color-mix(in srgb, CanvasText 50%, Canvas);
 }
 
 .board-pct {

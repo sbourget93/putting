@@ -10,18 +10,17 @@
   border: 0;
 }
 
-/* Segmented range control: three radio pills sharing one track. */
-.range-control {
+/* Segmented control: equal-width radio pills. The surrounding card (.board-controls)
+   supplies the frame, so the row itself is just the pills. */
+.mode-control {
   display: flex;
   gap: 0.3rem;
-  margin: 0 0 1rem;
-  padding: 0.25rem;
-  border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
-  border-radius: 0.7rem;
-  background: color-mix(in srgb, CanvasText 3%, Canvas);
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
-.range-option {
+.mode-option {
   flex: 1 1 0;
   display: flex;
   align-items: center;
@@ -36,13 +35,13 @@
   cursor: pointer;
 }
 
-.range-option.active {
+.mode-option.active {
   background: var(--brand);
   color: var(--brand-text);
 }
 
 /* The radio itself is invisible; the label pill is the control. */
-.range-option input {
+.mode-option input {
   position: absolute;
   opacity: 0;
   width: 0;

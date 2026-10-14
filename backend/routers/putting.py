@@ -8,7 +8,7 @@ All reads only — writes go through `/commands`.
 """
 
 import os
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -325,71 +325,67 @@ def get_stats():
     return {"version": version, "users": users_list, "global": global_average(users_list)}
 
 
+# The Average board pools each player's most recent complete tests, but reaches no
+# further back than a year, so a long-dormant player's old form never lingers.
+AVERAGE_TEST_LIMIT = 50
+AVERAGE_MAX_AGE_DAYS = 365
+
+
+def _pct(made: int, attempts: int) -> float:
+    return (100 * made / attempts) if attempts else 0
+
+
+def _stat(distance: int, made: int, attempts: int) -> dict:
+    return {"distance": distance, "made": made, "attempts": attempts, "pct": _pct(made, attempts)}
+
+
+def _rank(entries: list[dict]) -> list[dict]:
+    """Best overall % first; name as a stable tiebreak so ties are deterministic."""
+    entries.sort(key=lambda e: e["name"])
+    entries.sort(key=lambda e: e["overall_pct"], reverse=True)
+    return entries
+
+
 @router.get("/leaderboard")
-def get_leaderboard(start: str | None = None, end: str | None = None, day: str | None = None):
-    """Players ranked by overall daily-test make %, over an optional date window.
+def get_leaderboard(mode: str = "daily", day: str | None = None):
+    """Players ranked by daily-test make %, in one of three modes.
 
-    Public and email-free, like /stats. Complete tests only (incomplete tests don't
-    count), joined to their test so the window filters on the local test_date.
-    `start`/`end` are inclusive YYYY-MM-DD bounds; omit both
-    for all-time. A test whose test_date falls in the window but which is incomplete
-    is excluded entirely. Each entry also carries
-    its make-%-by-distance breakdown so the client can draw that player's line for
-    the chosen range without a second request. Only players with attempts in the
-    window appear, best overall % first.
+    Public and email-free, like /stats; complete tests only (incomplete tests never
+    count). Every entry carries its make-%-by-distance breakdown so the client draws
+    that player's line without a second request. `mode` picks what is ranked:
 
-    `day` (a local YYYY-MM-DD) additionally returns `in_progress`: players who have
-    started but not yet finished that day's test, so the Today board can show who is
-    mid-round. A finished test (all distances) is ranked above and never appears here.
+    - `daily` (default): a single day's board. `day` is a local YYYY-MM-DD (the
+      viewer's local day; defaults to the server's today). Also returns `in_progress`
+      (players who started but have not finished that day's test) and `days` (every
+      date that has at least one complete test, newest first) so the client's date
+      picker can offer only days with data.
+    - `average`: each player's most recent complete tests, at most AVERAGE_TEST_LIMIT
+      of them and none older than AVERAGE_MAX_AGE_DAYS, pooled into one percentage.
+    - `best`: each player's single best complete test ever, by its overall %; it never
+      falls off. Ties resolve to the more recent test.
     """
-    clauses = [
-        "b.deleted_at IS NULL",
-        "t.deleted_at IS NULL",
-        "u.deleted_at IS NULL",
-        f"b.test_id IN ({COMPLETE_TESTS_SUBQUERY})",
-    ]
-    params: list = []
-    if start:
-        clauses.append("t.test_date >= ?")
-        params.append(start)
-    if end:
-        clauses.append("t.test_date <= ?")
-        params.append(end)
-    where = " AND ".join(clauses)
-
+    if mode not in ("daily", "average", "best"):
+        raise HTTPException(status_code=422, detail="unknown leaderboard mode")
     with db.read() as conn:
-        rows = conn.execute(
-            "SELECT u.sub AS sub, u.name AS name, u.picture AS picture, "
-            "b.distance AS distance, SUM(b.made) AS made, SUM(b.batch_size) AS attempts "
-            "FROM batches b "
-            "JOIN tests t ON t.test_id = b.test_id AND t.owner_sub = b.owner_sub "
-            "JOIN users u ON u.sub = b.owner_sub "
-            f"WHERE {where} "
-            "GROUP BY u.sub, b.distance "
-            "ORDER BY u.name, b.distance",
-            params,
-        ).fetchall()
+        if mode == "daily":
+            return _leaderboard_daily(conn, day or date.today().isoformat())
+        return _leaderboard_aggregate(conn, mode)
 
-        # Who has started `day`'s test, with their make-% so far by distance. A
-        # player who has covered every distance has finished (ranked above) and is
-        # dropped below; the rest are mid-round. The breakdown lets the client draw
-        # their partial line without another request, like the ranked entries.
-        in_progress_rows = []
-        if day:
-            in_progress_rows = conn.execute(
-                "SELECT u.sub AS sub, u.name AS name, u.picture AS picture, "
-                "b.distance AS distance, SUM(b.made) AS made, SUM(b.batch_size) AS attempts "
-                "FROM tests t "
-                "JOIN batches b ON b.test_id = t.test_id AND b.owner_sub = t.owner_sub "
-                "AND b.deleted_at IS NULL "
-                "JOIN users u ON u.sub = t.owner_sub AND u.deleted_at IS NULL "
-                "WHERE t.deleted_at IS NULL AND t.test_date = ? "
-                "GROUP BY u.sub, u.name, u.picture, b.distance "
-                "ORDER BY u.name, b.distance",
-                (day,),
-            ).fetchall()
 
-        version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
+def _leaderboard_daily(conn, day: str) -> dict:
+    rows = conn.execute(
+        "SELECT u.sub AS sub, u.name AS name, u.picture AS picture, "
+        "b.distance AS distance, SUM(b.made) AS made, SUM(b.batch_size) AS attempts "
+        "FROM batches b "
+        "JOIN tests t ON t.test_id = b.test_id AND t.owner_sub = b.owner_sub "
+        "JOIN users u ON u.sub = b.owner_sub "
+        "WHERE b.deleted_at IS NULL AND t.deleted_at IS NULL AND u.deleted_at IS NULL "
+        f"AND b.test_id IN ({COMPLETE_TESTS_SUBQUERY}) "
+        "AND t.test_date = ? "
+        "GROUP BY u.sub, b.distance "
+        "ORDER BY u.name, b.distance",
+        (day,),
+    ).fetchall()
 
     users: dict[str, dict] = {}
     totals: dict[str, list[int]] = {}  # sub -> [made, attempts]
@@ -399,51 +395,117 @@ def get_leaderboard(start: str | None = None, end: str | None = None, day: str |
             user = {"sub": r["sub"], "name": r["name"], "picture": r["picture"], "stats": []}
             users[r["sub"]] = user
             totals[r["sub"]] = [0, 0]
-        made, attempts = r["made"], r["attempts"]
-        user["stats"].append(
-            {
-                "distance": r["distance"],
-                "made": made,
-                "attempts": attempts,
-                "pct": (100 * made / attempts) if attempts else 0,
-            }
-        )
-        totals[r["sub"]][0] += made
-        totals[r["sub"]][1] += attempts
+        user["stats"].append(_stat(r["distance"], r["made"], r["attempts"]))
+        totals[r["sub"]][0] += r["made"]
+        totals[r["sub"]][1] += r["attempts"]
+    entries = _rank(
+        [{**u, "attempts": totals[sub][1], "overall_pct": _pct(*totals[sub])} for sub, u in users.items()]
+    )
 
-    entries = []
-    for sub, user in users.items():
-        made, attempts = totals[sub]
-        entries.append({**user, "attempts": attempts, "overall_pct": (100 * made / attempts) if attempts else 0})
-    # Best overall % first; a stable secondary sort by name keeps ties deterministic.
-    entries.sort(key=lambda e: e["name"])
-    entries.sort(key=lambda e: e["overall_pct"], reverse=True)
-
-    # Group today's per-distance rows into one entry per player. Distinct distances
-    # recorded (len of stats) gives how far along they are; a player at every
-    # distance has finished and is excluded here (they are ranked above).
+    # Who has started `day`'s test, with their make-% so far by distance. A player
+    # who has covered every distance has finished (ranked above) and is dropped here;
+    # the rest are mid-round. The breakdown lets the client draw their partial line.
+    in_progress_rows = conn.execute(
+        "SELECT u.sub AS sub, u.name AS name, u.picture AS picture, "
+        "b.distance AS distance, SUM(b.made) AS made, SUM(b.batch_size) AS attempts "
+        "FROM tests t "
+        "JOIN batches b ON b.test_id = t.test_id AND b.owner_sub = t.owner_sub "
+        "AND b.deleted_at IS NULL "
+        "JOIN users u ON u.sub = t.owner_sub AND u.deleted_at IS NULL "
+        "WHERE t.deleted_at IS NULL AND t.test_date = ? "
+        "GROUP BY u.sub, u.name, u.picture, b.distance "
+        "ORDER BY u.name, b.distance",
+        (day,),
+    ).fetchall()
     progress: dict[str, dict] = {}
     for r in in_progress_rows:
         player = progress.get(r["sub"])
         if player is None:
             player = {"sub": r["sub"], "name": r["name"], "picture": r["picture"], "stats": []}
             progress[r["sub"]] = player
-        made, attempts = r["made"], r["attempts"]
-        player["stats"].append(
-            {
-                "distance": r["distance"],
-                "made": made,
-                "attempts": attempts,
-                "pct": (100 * made / attempts) if attempts else 0,
-            }
-        )
+        player["stats"].append(_stat(r["distance"], r["made"], r["attempts"]))
     in_progress = [
         {**player, "done": len(player["stats"]), "remaining": TEST_DISTANCE_COUNT - len(player["stats"])}
         for player in progress.values()
         if len(player["stats"]) < TEST_DISTANCE_COUNT
     ]
-    # Furthest along first, then name for deterministic ties.
     in_progress.sort(key=lambda e: e["name"])
     in_progress.sort(key=lambda e: e["done"], reverse=True)
 
-    return {"version": version, "users": entries, "in_progress": in_progress}
+    # Every date with a complete test, newest first, so the picker offers only days
+    # that have a board to show.
+    days = [
+        r["test_date"]
+        for r in conn.execute(
+            "SELECT DISTINCT t.test_date AS test_date FROM tests t "
+            f"WHERE t.deleted_at IS NULL AND t.test_id IN ({COMPLETE_TESTS_SUBQUERY}) "
+            "ORDER BY t.test_date DESC"
+        ).fetchall()
+    ]
+
+    version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
+    return {"version": version, "users": entries, "in_progress": in_progress, "days": days}
+
+
+def _leaderboard_aggregate(conn, mode: str) -> dict:
+    """The Average and Best boards, both built from each player's complete tests."""
+    params: list = []
+    date_clause = ""
+    if mode == "average":
+        cutoff = (date.today() - timedelta(days=AVERAGE_MAX_AGE_DAYS)).isoformat()
+        date_clause = "AND t.test_date >= ? "
+        params.append(cutoff)
+    rows = conn.execute(
+        "SELECT u.sub AS sub, u.name AS name, u.picture AS picture, "
+        "t.test_id AS test_id, t.test_date AS test_date, "
+        "b.distance AS distance, SUM(b.made) AS made, SUM(b.batch_size) AS attempts "
+        "FROM batches b "
+        "JOIN tests t ON t.test_id = b.test_id AND t.owner_sub = b.owner_sub "
+        "JOIN users u ON u.sub = b.owner_sub "
+        "WHERE b.deleted_at IS NULL AND t.deleted_at IS NULL AND u.deleted_at IS NULL "
+        f"AND b.test_id IN ({COMPLETE_TESTS_SUBQUERY}) "
+        f"{date_clause}"
+        "GROUP BY u.sub, t.test_id, b.distance "
+        "ORDER BY u.sub, t.test_date DESC, t.test_id DESC, b.distance",
+        params,
+    ).fetchall()
+
+    # Group the flat rows into per-player lists of tests, newest first (the ORDER BY
+    # holds each test's distance rows contiguous, so a new test_id starts a new test).
+    meta: dict[str, dict] = {}
+    tests_by_user: dict[str, list[dict]] = {}
+    for r in rows:
+        meta.setdefault(r["sub"], {"sub": r["sub"], "name": r["name"], "picture": r["picture"]})
+        tests = tests_by_user.setdefault(r["sub"], [])
+        if not tests or tests[-1]["test_id"] != r["test_id"]:
+            tests.append({"test_id": r["test_id"], "test_date": r["test_date"], "stats": []})
+        tests[-1]["stats"].append(_stat(r["distance"], r["made"], r["attempts"]))
+
+    entries = []
+    for sub, tests in tests_by_user.items():
+        if mode == "average":
+            # Pool the most recent tests (already newest-first) by distance. `sessions`
+            # is how many went into the average, for the entry's subtext.
+            chosen = tests[:AVERAGE_TEST_LIMIT]
+            pooled: dict[int, list[int]] = {}
+            for t in chosen:
+                for s in t["stats"]:
+                    acc = pooled.setdefault(s["distance"], [0, 0])
+                    acc[0] += s["made"]
+                    acc[1] += s["attempts"]
+            stats = [_stat(d, m, a) for d, (m, a) in sorted(pooled.items())]
+            extra = {"sessions": len(chosen)}
+        else:  # best: the single highest-% test; max keeps the first (newest) on ties
+            best = max(tests, key=lambda t: _pct(*_test_totals(t)))
+            stats = sorted(best["stats"], key=lambda s: s["distance"])
+            extra = {"date": best["test_date"]}  # the day of that best test, for the subtext
+        made = sum(s["made"] for s in stats)
+        attempts = sum(s["attempts"] for s in stats)
+        entries.append({**meta[sub], "stats": stats, "attempts": attempts, "overall_pct": _pct(made, attempts), **extra})
+
+    version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
+    return {"version": version, "users": _rank(entries), "in_progress": [], "days": []}
+
+
+def _test_totals(test: dict) -> tuple[int, int]:
+    return sum(s["made"] for s in test["stats"]), sum(s["attempts"] for s in test["stats"])

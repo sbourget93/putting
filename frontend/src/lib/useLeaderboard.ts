@@ -1,17 +1,19 @@
 /**
  * useLeaderboard — the leaderboard's read model.
  *
- * Players ranked by overall daily-test make % over a date window, from the public
- * GET /api/leaderboard (email-free, keyed by the stable Google `sub`). Each entry
- * carries its make-%-by-distance breakdown too, so clicking a player draws their
- * line for the chosen range with no extra request. An online read by nature: it
- * spans every player, none of whom are in this device's offline cache.
+ * Players ranked by daily-test make % in one of three boards (see LeaderboardMode),
+ * from the public GET /api/leaderboard (email-free, keyed by the stable Google
+ * `sub`). Each entry carries its make-%-by-distance breakdown too, so clicking a
+ * player draws their line with no extra request. An online read by nature: it spans
+ * every player, none of whom are in this device's offline cache.
  *
- * The window is passed as inclusive YYYY-MM-DD bounds computed from the viewer's
- * local day (see LeaderboardPage), so "today" rolls over at local midnight.
+ * `daily` also returns `days` (every date that has a completed test, newest first)
+ * for the date picker, and `inProgress` (players mid-round on `day`). The other
+ * boards return neither.
  */
 import { fetchWithTimeout } from './http'
 import { useResilientFetch } from './useResilientFetch'
+import type { LeaderboardMode } from './leaderboard'
 import type { DistanceStat } from './putting'
 
 export interface LeaderboardEntry {
@@ -21,9 +23,13 @@ export interface LeaderboardEntry {
   overall_pct: number
   attempts: number
   stats: DistanceStat[]
+  /** Average board only: how many sessions went into the average. */
+  sessions?: number
+  /** Best board only: the local YYYY-MM-DD of the player's best session. */
+  date?: string
 }
 
-/** A player mid-round: today's test started but not yet finished. */
+/** A player mid-round: the day's test started but not yet finished. */
 export interface InProgressEntry {
   sub: string
   name: string
@@ -36,34 +42,33 @@ export interface InProgressEntry {
 export interface LeaderboardData {
   entries: LeaderboardEntry[]
   inProgress: InProgressEntry[]
+  days: string[]
   loading: boolean
   error: string | null
 }
 
 /**
- * Ranked players for the window [start, end] (inclusive); omit a bound for open.
- * Pass `day` (a local YYYY-MM-DD) to also get `inProgress`: players mid-round on
- * that day, for the Today board. Other windows leave it empty.
+ * Ranked players for `mode`. In `daily`, `day` (a local YYYY-MM-DD) is the board's
+ * date; the other boards ignore it.
  */
-export function useLeaderboard(start?: string, end?: string, day?: string): LeaderboardData {
+export function useLeaderboard(mode: LeaderboardMode, day: string): LeaderboardData {
   const { data, loading, error } = useResilientFetch(async () => {
-    const params = new URLSearchParams()
-    if (start) params.set('start', start)
-    if (end) params.set('end', end)
-    if (day) params.set('day', day)
-    const qs = params.toString()
-    const res = await fetchWithTimeout(`/api/leaderboard${qs ? `?${qs}` : ''}`)
+    const params = new URLSearchParams({ mode })
+    if (mode === 'daily') params.set('day', day)
+    const res = await fetchWithTimeout(`/api/leaderboard?${params.toString()}`)
     if (!res.ok) throw new Error(`Could not load leaderboard (${res.status})`)
     const body = (await res.json()) as {
       users: LeaderboardEntry[]
       in_progress?: InProgressEntry[]
+      days?: string[]
     }
-    return { entries: body.users, inProgress: body.in_progress ?? [] }
-  }, [start, end, day])
+    return { entries: body.users, inProgress: body.in_progress ?? [], days: body.days ?? [] }
+  }, [mode, day])
 
   return {
     entries: data?.entries ?? [],
     inProgress: data?.inProgress ?? [],
+    days: data?.days ?? [],
     loading,
     error,
   }

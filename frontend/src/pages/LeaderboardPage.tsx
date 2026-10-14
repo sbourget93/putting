@@ -1,18 +1,26 @@
 /**
- * Leaderboard — players ranked by overall daily-test make %.
+ * Leaderboard — players ranked by daily-test make %, across three boards:
  *
- * A range control (Today / Last 30 days / All time, defaulting to Today) sets the
- * window; the list re-ranks for it. Tapping a player expands their make-%-by-
- * distance graph for that same range. All reads are online (see useLeaderboard):
- * the board spans every player, so there is nothing to fold from the local cache.
+ * - Daily: one day's test, defaulting to today. A date picker steps through (or
+ *   drops down) every day that has a completed test; "today"/"yesterday" are named,
+ *   other days show their date.
+ * - Average: each player's last 50 tests from the past year, pooled.
+ * - Best: each player's single best test ever.
  *
- * On Today, players who have started but not finished today's test show at the
- * bottom with a caution sign instead of a rank, so you can see who is mid-round.
+ * Tapping a player expands their make-%-by-distance graph for that board. All reads
+ * are online (see useLeaderboard): the board spans every player, so there is nothing
+ * to fold from the local cache.
+ *
+ * On today's Daily board, players who have started but not finished today's test
+ * show at the bottom with a caution sign instead of a rank. That only makes sense
+ * for today; a past day's unfinished test is abandoned, so in-progress is hidden there.
  */
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useLeaderboard } from '../lib/useLeaderboard'
-import { windowFor, type Range } from '../lib/range'
-import RangeControl from '../components/RangeControl'
+import { MODE_BLURB, formatDay, type LeaderboardMode } from '../lib/leaderboard'
+import { localDay } from '../lib/putting'
+import ModeControl from '../components/ModeControl'
+import DayPicker from '../components/DayPicker'
 import PuttingChart, { type SeriesSpec } from '../components/PuttingChart'
 import './LeaderboardPage.css'
 
@@ -33,16 +41,21 @@ function CautionIcon() {
 }
 
 function LeaderboardPage() {
-  const [range, setRange] = useState<Range>('today')
+  const [mode, setMode] = useState<LeaderboardMode>('daily')
+  const [day, setDay] = useState<string>(() => localDay())
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
-  const { start, end } = useMemo(() => windowFor(range), [range])
-  // In-progress players only make sense for Today; end is today's local day there.
-  const { entries, inProgress, loading, error } = useLeaderboard(
-    start,
-    end,
-    range === 'today' ? end : undefined,
-  )
+  const { entries, inProgress, days, loading, error } = useLeaderboard(mode, day)
+
+  // In-progress players only make sense for today's Daily board.
+  const today = localDay()
+  const showInProgress = mode === 'daily' && day === today
+  const pending = showInProgress ? inProgress : []
+  const blurb = MODE_BLURB[mode]
+
+  // Today is always offered, even before anyone has putted: `days` lists only dates
+  // with a completed test, so prepend today when it isn't there yet (it is newest).
+  const pickerDays = days.includes(today) ? days : [today, ...days]
 
   function toggle(sub: string) {
     setExpanded((prev) => {
@@ -59,21 +72,43 @@ function LeaderboardPage() {
         <h1>Leaderboard</h1>
       </div>
 
-      <RangeControl
-        range={range}
-        name="leaderboard-range"
-        onChange={(r) => {
-          setRange(r)
-          setExpanded(new Set())
-        }}
-      />
+      {/* Mode picker, date picker, and description share one bordered card. The
+          second row keeps a fixed height across modes so the board below never
+          shifts when you switch. */}
+      <div className="board-controls">
+        <ModeControl
+          mode={mode}
+          onChange={(m) => {
+            setMode(m)
+            setExpanded(new Set())
+          }}
+        />
+        <div className="board-controls-sub">
+          {mode === 'daily' ? (
+            <DayPicker
+              day={day}
+              days={pickerDays}
+              onChange={(d) => {
+                setDay(d)
+                setExpanded(new Set())
+              }}
+            />
+          ) : (
+            <p className="board-blurb">{blurb}</p>
+          )}
+        </div>
+      </div>
 
       {error && <p className="error" role="alert">{error}</p>}
 
       {loading ? (
         <p className="muted">Loading…</p>
-      ) : entries.length === 0 && inProgress.length === 0 ? (
-        <div className="panel"><p className="muted">No scores in this range yet.</p></div>
+      ) : entries.length === 0 && pending.length === 0 ? (
+        <div className="panel">
+          <p className="muted">
+            {mode === 'daily' ? 'No completed tests for this day yet.' : 'No scores yet.'}
+          </p>
+        </div>
       ) : (
         <ol className="board-list">
           {entries.map((entry, i) => {
@@ -100,6 +135,14 @@ function LeaderboardPage() {
                     <img className="board-avatar" src={entry.picture} alt="" referrerPolicy="no-referrer" />
                   )}
                   <span className="board-name">{entry.name}</span>
+                  {mode === 'average' && entry.sessions != null && (
+                    <span className="board-sub">
+                      {entry.sessions} {entry.sessions === 1 ? 'session' : 'sessions'} included
+                    </span>
+                  )}
+                  {mode === 'best' && entry.date && (
+                    <span className="board-sub">{formatDay(entry.date)}</span>
+                  )}
                   <span className="board-pct">{Math.round(entry.overall_pct)}%</span>
                 </button>
 
@@ -117,7 +160,7 @@ function LeaderboardPage() {
           {/* Mid-round players, pinned below the ranked board: no rank or score
               yet, a caution and how many batches remain instead. Tapping one opens
               their partial make-%-by-distance line, like a ranked row. */}
-          {inProgress.map((p) => {
+          {pending.map((p) => {
             const isOpen = expanded.has(p.sub)
             const series: SeriesSpec[] = [
               { id: p.sub, label: p.name, color: 'var(--brand)', stats: p.stats, emphasis: true },

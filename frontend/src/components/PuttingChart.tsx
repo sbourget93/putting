@@ -69,15 +69,9 @@ export default function PuttingChart({ series }: { series: SeriesSpec[] }) {
   const x = (d: number) => PAD.left + (span === 0 ? PLOT_W / 2 : ((d - minD) / span) * PLOT_W)
   const y = (pct: number) => PAD.top + (1 - pct / 100) * PLOT_H
 
-  // X-axis ticks come from whichever series covers the most distances.
-  const axisStats = drawn.reduce<DistanceStat[]>(
-    (widest, s) => (s.stats.length > widest.length ? s.stats : widest),
-    [],
-  )
-  const labelStep = Math.max(1, Math.ceil(axisStats.length / 8))
-
   // Subtle vertical guides at every 5 ft from 15 up, so the eye can read a
-  // distance off the line without counting ticks.
+  // distance off the line without counting ticks. The X-axis labels sit on the
+  // same marks, so every label lines up with a guide.
   const fiveFtMarks: number[] = []
   for (let d = 15; d <= maxD; d += 5) {
     if (d >= minD) fiveFtMarks.push(d)
@@ -143,20 +137,18 @@ export default function PuttingChart({ series }: { series: SeriesSpec[] }) {
         <line key={`v${d}`} className="grid grid-v" x1={x(d)} y1={y(100)} x2={x(d)} y2={y(0)} />
       ))}
 
-      {/* X labels (thinned so they don't collide) */}
-      {axisStats.map((s, i) =>
-        i % labelStep === 0 || i === axisStats.length - 1 ? (
-          <text
-            key={s.distance}
-            className="axis-label"
-            x={x(s.distance)}
-            y={H - PAD.bottom + 16}
-            textAnchor="middle"
-          >
-            {s.distance}
-          </text>
-        ) : null,
-      )}
+      {/* X labels, on the same 5-ft marks as the vertical guides */}
+      {fiveFtMarks.map((d) => (
+        <text
+          key={d}
+          className="axis-label"
+          x={x(d)}
+          y={H - PAD.bottom + 16}
+          textAnchor="middle"
+        >
+          {d}
+        </text>
+      ))}
       <text className="axis-title" x={PAD.left + PLOT_W / 2} y={H - 2} textAnchor="middle">
         distance (ft)
       </text>
