@@ -15,6 +15,7 @@ import json
 import os
 import tempfile
 import unittest
+from datetime import date, timedelta
 
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test-client-id")
 
@@ -296,36 +297,70 @@ class PuttingOwnershipTest(unittest.TestCase):
             )
         return client.post("/commands", json={"events": events})
 
-    def test_leaderboard_ranks_by_overall_and_filters_by_date(self):
+    def test_leaderboard_daily_ranks_one_day_and_lists_days_with_data(self):
         with TestClient(self._app) as client:
-            # Alice: a strong complete test today. Bob: a weaker complete test a
-            # month ago. Only complete tests are ranked.
+            # Alice: a strong complete test one day, a weaker one another day. Bob:
+            # one complete test, on the same day as Alice's strong one.
             self._login_as(client, ALICE)
             self.assertEqual(self._record_identity(client, "sub-alice", "Alice A").status_code, 200)
-            self.assertEqual(self._record_full_test(client, "t-a", "2026-08-26", made=5).status_code, 200)
+            self.assertEqual(self._record_full_test(client, "t-a1", "2026-08-26", made=5).status_code, 200)
+            self.assertEqual(self._record_full_test(client, "t-a2", "2026-08-20", made=3).status_code, 200)
             self._login_as(client, BOB)
             self.assertEqual(self._record_identity(client, "sub-bob", "Bob B").status_code, 200)
-            self.assertEqual(self._record_full_test(client, "t-b", "2026-07-26", made=2).status_code, 200)
+            self.assertEqual(self._record_full_test(client, "t-b", "2026-08-26", made=2).status_code, 200)
 
-            # All-time: both players, best overall % first (Alice 100 > Bob 40).
-            body = client.get("/leaderboard").json()
+            # The 26th's board: both players, best % first (Alice 100 > Bob 40).
+            body = client.get("/leaderboard", params={"mode": "daily", "day": "2026-08-26"}).json()
             self.assertNotIn("email", json.dumps(body))
             self.assertEqual([u["sub"] for u in body["users"]], ["sub-alice", "sub-bob"])
             self.assertEqual(body["users"][0]["overall_pct"], 100.0)
             self.assertEqual(body["users"][0]["attempts"], 110)  # 5 putts x 22 distances
             self.assertEqual(body["users"][0]["stats"][0]["distance"], 12)
+            # Only days that have a complete test are offered, newest first.
+            self.assertEqual(body["days"], ["2026-08-26", "2026-08-20"])
 
-            # Windowed to today: only Alice's test falls inside.
-            today = client.get("/leaderboard", params={"start": "2026-08-26", "end": "2026-08-26"}).json()
-            self.assertEqual([u["sub"] for u in today["users"]], ["sub-alice"])
+            # A different day shows only that day's board.
+            other = client.get("/leaderboard", params={"mode": "daily", "day": "2026-08-20"}).json()
+            self.assertEqual([u["sub"] for u in other["users"]], ["sub-alice"])
+            self.assertEqual(other["users"][0]["overall_pct"], 60.0)
+
+    def test_leaderboard_best_is_each_players_single_best_test(self):
+        with TestClient(self._app) as client:
+            self._login_as(client, ALICE)
+            self.assertEqual(self._record_identity(client, "sub-alice", "Alice A").status_code, 200)
+            # Two complete tests; Best reports the stronger one and ignores the other.
+            self.assertEqual(self._record_full_test(client, "t-weak", "2026-08-20", made=2).status_code, 200)
+            self.assertEqual(self._record_full_test(client, "t-strong", "2026-08-26", made=4).status_code, 200)
+
+            body = client.get("/leaderboard", params={"mode": "best"}).json()
+            self.assertEqual([u["sub"] for u in body["users"]], ["sub-alice"])
+            self.assertEqual(body["users"][0]["overall_pct"], 80.0)  # 4/5, the strong test
+            self.assertEqual(body["users"][0]["date"], "2026-08-26")  # the strong test's day
+            self.assertEqual(body["days"], [])
+
+    def test_leaderboard_average_pools_recent_tests_within_a_year(self):
+        with TestClient(self._app) as client:
+            self._login_as(client, ALICE)
+            self.assertEqual(self._record_identity(client, "sub-alice", "Alice A").status_code, 200)
+            # A recent test counts; one over a year old is dropped, so the average is
+            # the recent test's 60%, not blended with the stale 20%.
+            recent = date.today().isoformat()
+            stale = (date.today() - timedelta(days=400)).isoformat()
+            self.assertEqual(self._record_full_test(client, "t-recent", recent, made=3).status_code, 200)
+            self.assertEqual(self._record_full_test(client, "t-stale", stale, made=1).status_code, 200)
+
+            body = client.get("/leaderboard", params={"mode": "average"}).json()
+            self.assertEqual([u["sub"] for u in body["users"]], ["sub-alice"])
+            self.assertEqual(body["users"][0]["overall_pct"], 60.0)
+            self.assertEqual(body["users"][0]["sessions"], 1)  # only the recent test counted
 
     def test_leaderboard_excludes_incomplete_tests(self):
         with TestClient(self._app) as client:
-            # A partial test in the window does not put the player on the board.
+            # A partial test never puts the player on any board.
             self._login_as(client, ALICE)
             self.assertEqual(self._record_identity(client, "sub-alice", "Alice A").status_code, 200)
             self.assertEqual(self._record_test(client, "t-partial", "b-partial", "2026-08-26", 12, 5).status_code, 200)
-            self.assertEqual(client.get("/leaderboard").json()["users"], [])
+            self.assertEqual(client.get("/leaderboard", params={"mode": "best"}).json()["users"], [])
 
     def test_daily_baseline_excludes_today_and_incomplete_tests(self):
         with TestClient(self._app) as client:

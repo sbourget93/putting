@@ -1,0 +1,174 @@
+.day-picker {
+  position: relative;
+  width: 100%;
+}
+
+/* ‹ step | calendar field | step › */
+.day-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+}
+
+.day-step {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 40px;
+  border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
+  border-radius: 0.6rem;
+  background: Canvas;
+  color: inherit;
+  cursor: pointer;
+}
+
+.day-step:active {
+  background: color-mix(in srgb, CanvasText 6%, Canvas);
+}
+
+.day-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* The field that opens the calendar; shows the current day's label. */
+.day-trigger {
+  flex: 1 1 auto;
+  min-height: 40px;
+  padding: 0 0.75rem;
+  border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
+  border-radius: 0.6rem;
+  background: Canvas;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.day-trigger:active {
+  background: color-mix(in srgb, CanvasText 6%, Canvas);
+}
+
+/* The calendar popover, pinned under the field; absolute so it never shifts the board. */
+.day-cal {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  padding: 0.6rem;
+  border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
+  border-radius: 0.6rem;
+  background: Canvas;
+  box-shadow: 0 8px 24px color-mix(in srgb, CanvasText 18%, transparent);
+}
+
+.cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.cal-month {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.cal-nav:active {
+  background: color-mix(in srgb, CanvasText 6%, Canvas);
+}
+
+.cal-nav:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.15rem;
+}
+
+.cal-weekdays {
+  margin-bottom: 0.2rem;
+}
+
+.cal-weekday {
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: color-mix(in srgb, CanvasText 45%, Canvas);
+}
+
+.cal-blank {
+  aspect-ratio: 1 / 1;
+}
+
+.cal-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.cal-cell:enabled:active {
+  background: color-mix(in srgb, CanvasText 8%, Canvas);
+}
+
+/* A day with no board: visible for orientation, but not pickable. */
+.cal-cell:disabled {
+  color: color-mix(in srgb, CanvasText 28%, Canvas);
+  cursor: default;
+}
+
+/* The standard today indicator: a ring, only on today (dropped when it's selected). */
+.cal-cell.today:not(.selected) {
+  box-shadow: inset 0 0 0 1.5px var(--brand);
+}
+
+.cal-cell.selected {
+  background: var(--brand);
+  color: var(--brand-text);
+  font-weight: 700;
+}
+
+/* The small "today" caption under today's number; brand blue, flipping to the
+   selected cell's text color when today is the chosen day. */
+.cal-today-tag {
+  margin-top: 1px;
+  font-size: 0.5rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--brand);
+}
+
+.cal-cell.selected .cal-today-tag {
+  color: var(--brand-text);
+}
