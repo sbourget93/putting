@@ -134,15 +134,17 @@ function LeaderboardPage() {
                   {entry.picture && (
                     <img className="board-avatar" src={entry.picture} alt="" referrerPolicy="no-referrer" />
                   )}
-                  <span className="board-name">{entry.name}</span>
-                  {mode === 'average' && entry.sessions != null && (
-                    <span className="board-sub">
-                      {entry.sessions} {entry.sessions === 1 ? 'session' : 'sessions'} included
-                    </span>
-                  )}
-                  {mode === 'best' && entry.date && (
-                    <span className="board-sub">{formatDay(entry.date)}</span>
-                  )}
+                  <span className="board-namecol">
+                    <span className="board-name">{entry.name}</span>
+                    {mode === 'average' && entry.sessions != null && (
+                      <span className="board-sub">
+                        {entry.sessions} {entry.sessions === 1 ? 'session' : 'sessions'} included
+                      </span>
+                    )}
+                    {mode === 'best' && entry.date && (
+                      <span className="board-sub">{formatDay(entry.date)}</span>
+                    )}
+                  </span>
                   <span className="board-pct">{Math.round(entry.overall_pct)}%</span>
                 </button>
 

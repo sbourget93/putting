@@ -80,21 +80,33 @@
   object-fit: cover;
 }
 
-.board-name {
-  flex: 0 1 auto;
+/* Name over its optional subtext, stacked so the subtext sits below the name
+   without widening or (within the row's min-height) heightening the row. */
+.board-namecol {
+  flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.board-name {
+  max-width: 100%;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Small gray note after the name on the Average ("x sessions included") and Best
-   (the session's date) boards. The name ellipsizes first, so this stays readable. */
+/* Small gray note under the name on the Average ("x sessions included") and Best
+   (the session's date) boards. */
 .board-sub {
-  flex: 0 0 auto;
+  max-width: 100%;
   font-size: 0.78rem;
+  line-height: 1.15;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: color-mix(in srgb, CanvasText 50%, Canvas);
 }
 
