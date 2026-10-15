@@ -88,7 +88,10 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request, { signal: AbortSignal.timeout(NAV_TIMEOUT_MS) })
+      // `cache: 'no-store'` so the browser's HTTP cache can't answer this "network"
+      // fetch with a heuristically-fresh stale shell — otherwise a launch boots the
+      // old build despite the worker being current (see nginx.conf's no-cache rules).
+      fetch(request, { cache: 'no-store', signal: AbortSignal.timeout(NAV_TIMEOUT_MS) })
         .then((response) => {
           // A reachable-but-broken server (proxy up, backend erroring) answers with
           // an error page. Treat that like being offline: serve the cached shell so
