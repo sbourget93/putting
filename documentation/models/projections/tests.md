@@ -12,6 +12,7 @@ Its only purpose is to give those batches a stable id to point at and to record 
 | `test_id` | Unique id of the daily test. |
 | `owner_sub` | Google `sub` of the user the test belongs to. |
 | `test_date` | The local calendar day (`YYYY-MM-DD`) this test covers. |
+| `message` | A brief message a user may input that will be displayed alongside their daily leaderboard score. |
 
 ## Relationships
 

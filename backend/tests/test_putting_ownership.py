@@ -373,7 +373,7 @@ class PuttingOwnershipTest(unittest.TestCase):
 
             body = client.get("/daily", params={"day": "2026-08-26"}).json()
             # Today's test and only today's batches.
-            self.assertEqual(body["test"], {"test_id": "t-new", "test_date": "2026-08-26"})
+            self.assertEqual(body["test"], {"test_id": "t-new", "test_date": "2026-08-26", "message": None})
             self.assertEqual([b["batch_id"] for b in body["today_batches"]], ["b-new"])
             # Baseline is only the complete past test: all 22 distances, and 12 ft is
             # 4/5 — proof that today (would make it 9/10) and the incomplete day
