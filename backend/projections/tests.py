@@ -15,6 +15,11 @@ by `owner_sub` so each user sees only their own tests (see get_tests in putting.
 
 import sqlite3
 
+# A day's optional message is shown alongside the owner's daily leaderboard score.
+# Capped so a single row can never carry an unbounded blob (the UI truncates what
+# it displays; this bounds what is stored). Kept in step with the frontend limit.
+MESSAGE_MAX_LENGTH = 1000
+
 
 def _required(payload: dict, key: str, event_type: str) -> str:
     value = (payload.get(key) or "").strip()
@@ -28,6 +33,7 @@ CREATE TABLE IF NOT EXISTS tests (
     test_id    TEXT PRIMARY KEY,
     owner_sub  TEXT NOT NULL,
     test_date  TEXT NOT NULL,
+    message    TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT,
     deleted_at TEXT
@@ -45,10 +51,29 @@ def _started(
     # INSERT OR REPLACE keeps replay idempotent if a start is ever re-applied.
     conn.execute(
         "INSERT OR REPLACE INTO tests "
-        "(test_id, owner_sub, test_date, created_at, updated_at, deleted_at) "
-        "VALUES (?, ?, ?, ?, NULL, NULL)",
+        "(test_id, owner_sub, test_date, message, created_at, updated_at, deleted_at) "
+        "VALUES (?, ?, ?, NULL, ?, NULL, NULL)",
         (aggregate_id, owner_sub, test_date, created_at),
     )
 
 
-HANDLERS = {"TestStarted": _started}
+def _message_set(
+    conn: sqlite3.Connection, aggregate_id: str, payload: dict, created_at: str
+) -> None:
+    owner_sub = _required(payload, "owner_sub", "TestMessageSet")
+    message = payload.get("message")
+    if message is not None and not isinstance(message, str):
+        raise ValueError("TestMessageSet requires a string message")
+    message = (message or "").strip()
+    if len(message) > MESSAGE_MAX_LENGTH:
+        raise ValueError(f"TestMessageSet message must be at most {MESSAGE_MAX_LENGTH} characters")
+    # An empty message clears the note (stored as NULL). A row this owner doesn't
+    # have (missing or someone else's) matches nothing, so the set is a harmless
+    # no-op, like the batch edit/delete handlers.
+    conn.execute(
+        "UPDATE tests SET message = ?, updated_at = ? WHERE test_id = ? AND owner_sub = ?",
+        (message or None, created_at, aggregate_id, owner_sub),
+    )
+
+
+HANDLERS = {"TestStarted": _started, "TestMessageSet": _message_set}

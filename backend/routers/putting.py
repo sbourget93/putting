@@ -120,7 +120,7 @@ def get_tests(request: Request, sub: str | None = None):
         if owner is None:
             raise HTTPException(status_code=404, detail="Unknown user")
         rows = conn.execute(
-            "SELECT test_id, test_date, created_at, updated_at "
+            "SELECT test_id, test_date, message, created_at, updated_at "
             "FROM tests WHERE owner_sub = ? AND deleted_at IS NULL ORDER BY test_date",
             (owner,),
         ).fetchall()
@@ -197,11 +197,15 @@ def get_daily(request: Request, day: str | None = None):
     today = day or date.today().isoformat()
     with db.read() as conn:
         test_row = conn.execute(
-            "SELECT test_id, test_date FROM tests "
+            "SELECT test_id, test_date, message FROM tests "
             "WHERE owner_sub = ? AND test_date = ? AND deleted_at IS NULL",
             (owner, today),
         ).fetchone()
-        test = {"test_id": test_row["test_id"], "test_date": test_row["test_date"]} if test_row else None
+        test = (
+            {"test_id": test_row["test_id"], "test_date": test_row["test_date"], "message": test_row["message"]}
+            if test_row
+            else None
+        )
 
         today_batches: list[dict] = []
         today_putts: list[dict] = []
@@ -374,7 +378,7 @@ def get_leaderboard(mode: str = "daily", day: str | None = None):
 
 def _leaderboard_daily(conn, day: str) -> dict:
     rows = conn.execute(
-        "SELECT u.sub AS sub, u.name AS name, u.picture AS picture, "
+        "SELECT u.sub AS sub, u.name AS name, u.picture AS picture, t.message AS message, "
         "b.distance AS distance, SUM(b.made) AS made, SUM(b.batch_size) AS attempts "
         "FROM batches b "
         "JOIN tests t ON t.test_id = b.test_id AND t.owner_sub = b.owner_sub "
@@ -392,7 +396,9 @@ def _leaderboard_daily(conn, day: str) -> dict:
     for r in rows:
         user = users.get(r["sub"])
         if user is None:
-            user = {"sub": r["sub"], "name": r["name"], "picture": r["picture"], "stats": []}
+            # One complete test per (user, day), so its message is the same on every
+            # distance row for this user; take it from the first.
+            user = {"sub": r["sub"], "name": r["name"], "picture": r["picture"], "message": r["message"], "stats": []}
             users[r["sub"]] = user
             totals[r["sub"]] = [0, 0]
         user["stats"].append(_stat(r["distance"], r["made"], r["attempts"]))
