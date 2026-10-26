@@ -19,7 +19,8 @@ export const MODES: { id: LeaderboardMode; label: string }[] = [
 /** The small gray caption under the control; null for Daily (its picker says it). */
 export const MODE_BLURB: Record<LeaderboardMode, string | null> = {
   daily: null,
-  average: 'Average of each player’s last 50 sessions, going back up to a year.',
+  average:
+    'Average of each player’s last 50 sessions, going back up to a year. Minimum 5 sessions required.',
   best: 'Each player’s all time best session.',
 }
 

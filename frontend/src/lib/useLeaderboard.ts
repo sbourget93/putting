@@ -23,6 +23,9 @@ export interface LeaderboardEntry {
   overall_pct: number
   attempts: number
   stats: DistanceStat[]
+  /** Whether this player has a directional miss in the board's selection, so the row
+   *  can flag that expanding it reveals a miss map. */
+  has_misses: boolean
   /** Average board only: how many sessions went into the average. */
   sessions?: number
   /** Best board only: the local YYYY-MM-DD of the player's best session. */
@@ -39,12 +42,16 @@ export interface InProgressEntry {
   done: number // distances recorded so far
   remaining: number // distances still owed
   stats: DistanceStat[] // make-% so far, by distance, for the partial line
+  has_misses: boolean // a directional miss recorded so far today
 }
 
 export interface LeaderboardData {
   entries: LeaderboardEntry[]
   inProgress: InProgressEntry[]
   days: string[]
+  /** Average board only: the all-players average line by distance (every player with
+   *  qualifying tests, including those under the session minimum). Empty otherwise. */
+  averageAll: DistanceStat[]
   loading: boolean
   error: string | null
 }
@@ -63,14 +70,21 @@ export function useLeaderboard(mode: LeaderboardMode, day: string): LeaderboardD
       users: LeaderboardEntry[]
       in_progress?: InProgressEntry[]
       days?: string[]
+      global?: DistanceStat[]
     }
-    return { entries: body.users, inProgress: body.in_progress ?? [], days: body.days ?? [] }
+    return {
+      entries: body.users,
+      inProgress: body.in_progress ?? [],
+      days: body.days ?? [],
+      averageAll: body.global ?? [],
+    }
   }, [mode, day])
 
   return {
     entries: data?.entries ?? [],
     inProgress: data?.inProgress ?? [],
     days: data?.days ?? [],
+    averageAll: data?.averageAll ?? [],
     loading,
     error,
   }

@@ -17,7 +17,8 @@ const BASELINE = 'color-mix(in srgb, CanvasText 30%, Canvas)'
 
 export default function StatsChartPanel({
   title,
-  batches,
+  batches = [],
+  stats: statsProp,
   emptyNote,
   baseline,
   baselineStats: baselineStatsProp,
@@ -27,9 +28,15 @@ export default function StatsChartPanel({
   faded = false,
   compare,
   footer,
+  embedded = false,
+  chartFill = false,
 }: {
   title?: string
-  batches: Batch[]
+  /** The primary series as raw batches (aggregated here). Omit when passing `stats`. */
+  batches?: Batch[]
+  /** The primary series pre-aggregated by distance, for a caller that already has
+   *  by-distance stats (e.g. a leaderboard entry). Takes precedence over `batches`. */
+  stats?: DistanceStat[]
   emptyNote: string
   /** The baseline line, either as raw batches (aggregated here) or pre-aggregated
    *  by-distance stats (baselineStats). Pass at most one. */
@@ -46,8 +53,14 @@ export default function StatsChartPanel({
   compare?: { label: string; color: string; stats: DistanceStat[] }
   /** Extra content pinned to the bottom of the panel, below the chart and legend. */
   footer?: ReactNode
+  /** Render only the chart, legend and footer, with no surrounding panel or title,
+   *  for a caller that supplies its own frame (e.g. the Daily Putts top panel). */
+  embedded?: boolean
+  /** Stretch the chart to fill its container rather than keeping its aspect ratio,
+   *  so an embedded caller can pin it to a fixed-height box. */
+  chartFill?: boolean
 }) {
-  const stats = statsByDistance(batches)
+  const stats = statsProp ?? statsByDistance(batches)
   const baselineStats = baselineStatsProp ?? (baseline ? statsByDistance(baseline) : [])
   const showChart = alwaysRenderChart || stats.length > 0
   const showToday = stats.length > 0
@@ -70,14 +83,13 @@ export default function StatsChartPanel({
     series.push({ id: 'compare', label: compare.label, color: compare.color, stats: compare.stats, emphasis: true })
   }
 
-  return (
-    <div className={faded ? 'panel chart-panel chart-panel-faded' : 'panel chart-panel'}>
-      {title && <h2 className="section-title">{title}</h2>}
+  const body = (
+    <>
       {!showChart ? (
         <p className="muted">{emptyNote}</p>
       ) : (
         <>
-          <PuttingChart series={series} />
+          <PuttingChart series={series} fill={chartFill} />
           {showLegend && (
             <ul className="chart-legend">
               {showToday && (
@@ -103,6 +115,15 @@ export default function StatsChartPanel({
         </>
       )}
       {footer}
+    </>
+  )
+
+  if (embedded) return body
+
+  return (
+    <div className={faded ? 'panel chart-panel chart-panel-faded' : 'panel chart-panel'}>
+      {title && <h2 className="section-title">{title}</h2>}
+      {body}
     </div>
   )
 }

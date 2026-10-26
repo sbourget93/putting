@@ -1,0 +1,80 @@
+/* A tall editor sheet: it reuses the shared .modal-backdrop/.modal shell but grows
+   to most of the viewport so the textarea has room to read and write at length. */
+.notes-modal {
+  display: flex;
+  flex-direction: column;
+  height: min(80svh, 40rem);
+  max-height: calc(100svh - 2rem - env(safe-area-inset-bottom));
+}
+
+.notes-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.8rem;
+}
+
+.notes-modal-title h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.notes-modal-privacy {
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: color-mix(in srgb, CanvasText 55%, Canvas);
+}
+
+.notes-modal-close {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -0.4rem -0.4rem -0.4rem 0;
+  border: 0;
+  border-radius: 0.5rem;
+  background: none;
+  color: color-mix(in srgb, CanvasText 55%, Canvas);
+  cursor: pointer;
+}
+
+.notes-modal-close:active {
+  background: color-mix(in srgb, CanvasText 8%, Canvas);
+}
+
+.notes-modal-close svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+/* Fills the space between the header and the action row. */
+.notes-textarea {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  resize: none;
+  padding: 0.75rem;
+  border: 1px solid color-mix(in srgb, CanvasText 25%, Canvas);
+  border-radius: 0.6rem;
+  background: Canvas;
+  color: CanvasText;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.notes-textarea:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+.notes-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}

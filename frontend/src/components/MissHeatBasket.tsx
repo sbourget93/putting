@@ -16,41 +16,53 @@ import './MissHeatBasket.css'
 export default function MissHeatBasket({
   counts,
   total,
+  title = 'Miss distribution',
+  embedded = false,
 }: {
   counts: Partial<Record<MissType, number>>
   total: number
+  title?: string
+  /** Render only the heat grid, with no surrounding panel or title, for a caller
+   *  that supplies its own frame (e.g. the Daily Putts top panel's Misses view). */
+  embedded?: boolean
 }) {
   const max = Math.max(1, ...MISS_GRID.flat().map((m) => counts[m] ?? 0))
 
+  const grid = (
+    <div className="miss-heat">
+      <img src={basket} alt="" className="miss-heat-basket" aria-hidden="true" />
+      <div className="miss-heat-grid" role="group" aria-label="Misses by location">
+        {MISS_GRID.flat().map((m) => {
+          const n = counts[m] ?? 0
+          const pct = total ? Math.round((100 * n) / total) : 0
+          // Tint from a faint floor up to a mid-strength cap, scaled by how this
+          // cell compares to the most-missed one, so the hotspot stands out.
+          const alpha = n ? 14 + Math.round((n / max) * 52) : 0
+          return (
+            <div
+              key={m}
+              className="miss-heat-cell"
+              style={{
+                backgroundColor: n
+                  ? `color-mix(in srgb, var(--brand) ${alpha}%, transparent)`
+                  : 'transparent',
+              }}
+              aria-label={`${MISS_LABELS[m]}: ${pct}% of misses`}
+            >
+              {n > 0 && <span className="miss-heat-pct">{pct}%</span>}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  if (embedded) return grid
+
   return (
     <div className="panel miss-heat-panel">
-      <h2 className="section-title">Miss distribution</h2>
-      <div className="miss-heat">
-        <img src={basket} alt="" className="miss-heat-basket" aria-hidden="true" />
-        <div className="miss-heat-grid" role="group" aria-label="Misses by location">
-          {MISS_GRID.flat().map((m) => {
-            const n = counts[m] ?? 0
-            const pct = total ? Math.round((100 * n) / total) : 0
-            // Tint from a faint floor up to a mid-strength cap, scaled by how this
-            // cell compares to the most-missed one, so the hotspot stands out.
-            const alpha = n ? 14 + Math.round((n / max) * 52) : 0
-            return (
-              <div
-                key={m}
-                className="miss-heat-cell"
-                style={{
-                  backgroundColor: n
-                    ? `color-mix(in srgb, var(--brand) ${alpha}%, transparent)`
-                    : 'transparent',
-                }}
-                aria-label={`${MISS_LABELS[m]}: ${pct}% of misses`}
-              >
-                {n > 0 && <span className="miss-heat-pct">{pct}%</span>}
-              </div>
-            )
-          })}
-        </div>
-      </div>
+      <h2 className="section-title">{title}</h2>
+      {grid}
     </div>
   )
 }

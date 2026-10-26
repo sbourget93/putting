@@ -13,7 +13,7 @@
  * the higher make % shows on top. Identity is carried by the caller's legend,
  * never by color alone.
  */
-import type { DistanceStat } from '../lib/putting'
+import { TEST_MAX, TEST_MIN, type DistanceStat } from '../lib/putting'
 import './PuttingChart.css'
 
 export interface SeriesSpec {
@@ -57,14 +57,24 @@ function dotTitle(s: SeriesSpec, p: DistanceStat): string {
   return `${s.label} — ${p.distance} ft — ${value}`
 }
 
-export default function PuttingChart({ series }: { series: SeriesSpec[] }) {
+export default function PuttingChart({
+  series,
+  fill = false,
+}: {
+  series: SeriesSpec[]
+  /** Stretch the chart to fill its container's width and height instead of keeping
+   *  the 340×240 aspect ratio, so a caller can pin it to a fixed-height box. */
+  fill?: boolean
+}) {
   const drawn = series.filter((s) => s.stats.length > 0)
 
-  // Scale X across every series so all lines share one domain and line up.
+  // Scale X across the full test range, not the data's own min/max, so every chart
+  // shares one 12…33 ft axis and the extreme distances are always shown even before
+  // a player has points there.
   const allDistances = drawn.flatMap((s) => s.stats.map((p) => p.distance))
-  const minD = allDistances.length ? Math.min(...allDistances) : 0
-  const maxD = allDistances.length ? Math.max(...allDistances) : 1
-  const span = maxD - minD || 1 // avoid /0 when there's a single distance
+  const minD = TEST_MIN
+  const maxD = TEST_MAX
+  const span = maxD - minD
 
   const x = (d: number) => PAD.left + (span === 0 ? PLOT_W / 2 : ((d - minD) / span) * PLOT_W)
   const y = (pct: number) => PAD.top + (1 - pct / 100) * PLOT_H
@@ -116,11 +126,11 @@ export default function PuttingChart({ series }: { series: SeriesSpec[] }) {
 
   return (
     <svg
-      className="putting-chart"
+      className={fill ? 'putting-chart putting-chart-fill' : 'putting-chart'}
       viewBox={`0 0 ${W} ${H}`}
       role="img"
       aria-label={summary}
-      preserveAspectRatio="xMidYMid meet"
+      preserveAspectRatio={fill ? 'none' : 'xMidYMid meet'}
     >
       {/* Y gridlines + labels */}
       {Y_TICKS.map((t) => (

@@ -12,7 +12,9 @@ from fastapi import APIRouter, Depends, HTTPException
 
 import auth
 import db
+import s3_sync
 from projections import TABLES as PROJECTION_TABLES
+from routers.commands import CommandRequest, ingest_events
 
 router = APIRouter(dependencies=[Depends(auth.require_admin)])
 
@@ -30,6 +32,38 @@ OWNER_TABLES = frozenset(ADMIN_TABLES) - {"users", "sync_state"}
 # The data viewer returns only recent rows — the last 30 days by created_at — rather
 # than a fixed row cap, so an old event log never builds an unbounded response.
 DATA_WINDOW_DAYS = 30
+
+
+@router.post("/admin/events")
+def post_admin_events(req: CommandRequest):
+    """Append and project a batch of events, keeping each event's own owner_sub.
+
+    The admin replay/backfill path. It shares the command core (ingest_events: the
+    same type checks, idempotent event_id skip, atomic transaction, and projection)
+    but differs from POST /commands in exactly one way: it persists the owner_sub
+    carried in each event's payload instead of stamping the caller's. That is what
+    lets one admin backfill events across many users at once — e.g. the shadow
+    putts owed by batches recorded before per-putt tracking existed — with each
+    event landing under its original author and original created_at.
+
+    Because it can write any event as any user, it is strictly admin-gated (the
+    router-level require_admin) and still refuses SERVER_ONLY_EVENT_TYPES, so even
+    an admin cannot forge a UserRoleChanged through this generic path (role changes
+    keep their own op-gated endpoint). Each event's payload must carry a non-empty
+    owner_sub or the per-aggregate projection rejects it with a 400.
+
+    Send large backfills in chunks (a few thousand events per request) rather than
+    one enormous body; event_id idempotency makes a re-sent chunk a safe no-op.
+    """
+    with db.transaction() as conn:
+        # Keep each event's own owner_sub (unlike POST /commands, which stamps the
+        # caller's), so a backfill lands under the original author.
+        version = ingest_events(conn, req.events, lambda event: dict(event.data or {}))
+
+    # Best-effort: nudge the background loop to back the new events up to S3, exactly
+    # as POST /commands does. The local commit above is the durable point.
+    s3_sync.request_sync()
+    return {"status": "ok", "version": version}
 
 
 @router.get("/events")

@@ -6,6 +6,7 @@ See the backend AGENTS.md for the CQRS/event-sourcing architecture.
 """
 
 import json
+from collections.abc import Callable
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -17,11 +18,11 @@ from projections import KNOWN_EVENT_TYPES, apply_event
 
 router = APIRouter()
 
-# Event types the self-service command path must never accept, even though they
-# have a registered projection handler (needed for replay). These are issued only
-# by their own privileged, server-side endpoints — e.g. UserRoleChanged comes from
-# the op-gated POST /users/{sub}/role — so a user cannot forge one through
-# POST /commands to, say, promote themselves.
+# Event types no generic write path may accept, even though they have a registered
+# projection handler (needed for replay). These are issued only by their own
+# privileged, server-side endpoints — e.g. UserRoleChanged comes from the op-gated
+# POST /users/{sub}/role — so neither a user (via POST /commands) nor an admin (via
+# the replay endpoint) can forge one to, say, promote an account.
 SERVER_ONLY_EVENT_TYPES = frozenset({"UserRoleChanged"})
 
 
@@ -35,6 +36,55 @@ class CommandEvent(BaseModel):
 
 class CommandRequest(BaseModel):
     events: list[CommandEvent]
+
+
+def ingest_events(
+    conn,
+    events: list[CommandEvent],
+    payload_for: Callable[[CommandEvent], dict],
+) -> int:
+    """Append and project a batch of client events in the given transaction.
+
+    The shared core of every write path. The caller owns the transaction (so the
+    whole batch is atomic) and supplies `payload_for`, which returns the payload to
+    persist for one event. That is the ONLY place the paths differ: POST /commands
+    stamps the signed-in user's owner_sub (ignoring any client value), while the
+    admin replay path keeps each event's own owner_sub so a backfill lands under
+    the original author.
+
+    Unknown event types are a 400 and the server-only types a 403; an event whose
+    event_id is already in the log is skipped (idempotent retries); a payload the
+    per-aggregate handler rejects is a 400. Returns the new log version (max seq).
+    """
+    for event in events:
+        if event.type not in KNOWN_EVENT_TYPES:
+            raise HTTPException(status_code=400, detail=f"Unknown event type: {event.type}")
+        if event.type in SERVER_ONLY_EVENT_TYPES:
+            raise HTTPException(
+                status_code=403, detail=f"Event type not allowed here: {event.type}"
+            )
+
+        # Idempotency: an event already recorded (e.g. a retry after a lost ack, or
+        # a backfill file replayed twice) is skipped rather than duplicated.
+        already = conn.execute(
+            "SELECT 1 FROM events WHERE event_id = ?", (event.event_id,)
+        ).fetchone()
+        if already:
+            continue
+
+        payload = payload_for(event)
+        try:
+            conn.execute(
+                "INSERT INTO events (event_id, event_type, aggregate_id, payload, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (event.event_id, event.type, event.aggregate_id, json.dumps(payload), event.created_at),
+            )
+            apply_event(conn, event.type, event.aggregate_id, payload, event.created_at)
+        except ValueError as exc:
+            # Per-aggregate projection validation rejected the payload.
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    return conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
 
 
 @router.post("/commands", dependencies=[Depends(auth.require_writer)])
@@ -62,37 +112,13 @@ def post_commands(req: CommandRequest, request: Request):
     user = auth.current_user(request) or {}
     owner_sub = user.get("sub") or ""
     with db.transaction() as conn:
-        for event in req.events:
-            if event.type not in KNOWN_EVENT_TYPES:
-                raise HTTPException(status_code=400, detail=f"Unknown event type: {event.type}")
-            if event.type in SERVER_ONLY_EVENT_TYPES:
-                raise HTTPException(
-                    status_code=403, detail=f"Event type not allowed here: {event.type}"
-                )
-
-            # Idempotency: an event already recorded (e.g. a retry after a lost
-            # ack) is skipped rather than duplicated.
-            already = conn.execute(
-                "SELECT 1 FROM events WHERE event_id = ?", (event.event_id,)
-            ).fetchone()
-            if already:
-                continue
-
-            # Server-stamped owner_sub is authoritative: never trust a client-supplied
-            # one. Persisted into the event so replay keeps the same ownership.
-            payload = {**(event.data or {}), "owner_sub": owner_sub}
-            try:
-                conn.execute(
-                    "INSERT INTO events (event_id, event_type, aggregate_id, payload, created_at) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (event.event_id, event.type, event.aggregate_id, json.dumps(payload), event.created_at),
-                )
-                apply_event(conn, event.type, event.aggregate_id, payload, event.created_at)
-            except ValueError as exc:
-                # Per-aggregate projection validation rejected the payload.
-                raise HTTPException(status_code=400, detail=str(exc))
-
-        version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
+        # Server-stamped owner_sub is authoritative: never trust a client-supplied
+        # one. Persisted into the event so replay keeps the same ownership.
+        version = ingest_events(
+            conn,
+            req.events,
+            lambda event: {**(event.data or {}), "owner_sub": owner_sub},
+        )
 
     # Best-effort: nudge the background loop to back the new events up to S3.
     # Never blocks or fails the write — the local commit above is the durable point.

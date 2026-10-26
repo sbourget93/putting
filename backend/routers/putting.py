@@ -135,31 +135,85 @@ def get_tests(request: Request, sub: str | None = None):
 
 
 @router.get("/misses")
-def get_misses(request: Request, sub: str | None = None):
+def get_misses(
+    request: Request, sub: str | None = None, day: str | None = None, scope: str | None = None
+):
     """The resolved owner's missed putts grouped by location (miss_type).
 
     Owner-scoped like /batches, with the same optional ?sub= to browse another
     player. Only tracked misses count: a putt that was missed (made = 0) and has a
-    recorded direction. Restricted to complete tests, like /stats and the graphs, so
-    the distribution matches what the profile's charts are built from. Returns a
-    `counts` map keyed by miss_type and the `total`; empty for a player who has
-    tracked none. The nine miss types are documented in projections/putts.md.
+    recorded direction. Returns a `counts` map keyed by miss_type and the `total`;
+    empty for a player who has tracked none. The nine miss types are documented in
+    projections/putts.md.
+
+    The putts counted follow one of three scopes, so a map always matches the graph
+    beside it:
+    - default: the lifetime distribution over complete tests, like /stats and the
+      graphs, so it matches what the profile's charts are built from.
+    - `day` (a local YYYY-MM-DD): just that day's test — including an in-progress one
+      — so the Daily leaderboard's map reflects a player's misses for that day alone.
+    - `scope=average`: the same tests the Average board pools (the player's most
+      recent complete tests within the age window), so the map matches that board's
+      line.
     """
+    if scope is not None and scope != "average":
+        raise HTTPException(status_code=422, detail="unknown misses scope")
     with db.read() as conn:
         owner = _resolve_owner(conn, request, sub)
         if owner is None:
             raise HTTPException(status_code=404, detail="Unknown user")
-        rows = conn.execute(
-            "SELECT p.miss_type AS miss_type, COUNT(*) AS n "
-            "FROM putts p "
-            "JOIN batches b ON b.batch_id = p.batch_id AND b.owner_sub = p.owner_sub "
-            "WHERE p.owner_sub = ? AND p.deleted_at IS NULL "
-            "AND p.made = 0 AND p.miss_type IS NOT NULL "
-            "AND b.deleted_at IS NULL "
-            f"AND b.test_id IN ({COMPLETE_TESTS_SUBQUERY}) "
-            "GROUP BY p.miss_type",
-            (owner,),
-        ).fetchall()
+        if scope == "average":
+            cutoff = (date.today() - timedelta(days=AVERAGE_MAX_AGE_DAYS)).isoformat()
+            test_ids = [
+                r["test_id"]
+                for r in conn.execute(
+                    "SELECT t.test_id FROM tests t "
+                    "WHERE t.owner_sub = ? AND t.deleted_at IS NULL AND t.test_date >= ? "
+                    f"AND t.test_id IN ({COMPLETE_TESTS_SUBQUERY}) "
+                    "ORDER BY t.test_date DESC, t.test_id DESC LIMIT ?",
+                    (owner, cutoff, AVERAGE_TEST_LIMIT),
+                ).fetchall()
+            ]
+            if test_ids:
+                placeholders = ",".join("?" * len(test_ids))
+                rows = conn.execute(
+                    "SELECT p.miss_type AS miss_type, COUNT(*) AS n "
+                    "FROM putts p "
+                    "JOIN batches b ON b.batch_id = p.batch_id AND b.owner_sub = p.owner_sub "
+                    "WHERE p.owner_sub = ? AND p.deleted_at IS NULL "
+                    "AND p.made = 0 AND p.miss_type IS NOT NULL "
+                    "AND b.deleted_at IS NULL "
+                    f"AND b.test_id IN ({placeholders}) "
+                    "GROUP BY p.miss_type",
+                    (owner, *test_ids),
+                ).fetchall()
+            else:
+                rows = []
+        elif day is not None:
+            rows = conn.execute(
+                "SELECT p.miss_type AS miss_type, COUNT(*) AS n "
+                "FROM putts p "
+                "JOIN batches b ON b.batch_id = p.batch_id AND b.owner_sub = p.owner_sub "
+                "JOIN tests t ON t.test_id = b.test_id AND t.owner_sub = b.owner_sub "
+                "WHERE p.owner_sub = ? AND p.deleted_at IS NULL "
+                "AND p.made = 0 AND p.miss_type IS NOT NULL "
+                "AND b.deleted_at IS NULL AND t.deleted_at IS NULL "
+                "AND t.test_date = ? "
+                "GROUP BY p.miss_type",
+                (owner, day),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT p.miss_type AS miss_type, COUNT(*) AS n "
+                "FROM putts p "
+                "JOIN batches b ON b.batch_id = p.batch_id AND b.owner_sub = p.owner_sub "
+                "WHERE p.owner_sub = ? AND p.deleted_at IS NULL "
+                "AND p.made = 0 AND p.miss_type IS NOT NULL "
+                "AND b.deleted_at IS NULL "
+                f"AND b.test_id IN ({COMPLETE_TESTS_SUBQUERY}) "
+                "GROUP BY p.miss_type",
+                (owner,),
+            ).fetchall()
         owner_sub, owner_name = owner, _owner_name(conn, owner)
         version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
     counts = {r["miss_type"]: r["n"] for r in rows}
@@ -330,9 +384,12 @@ def get_stats():
 
 
 # The Average board pools each player's most recent complete tests, but reaches no
-# further back than a year, so a long-dormant player's old form never lingers.
+# further back than a year, so a long-dormant player's old form never lingers. A
+# player needs at least AVERAGE_MIN_SESSIONS of those to appear, so a single lucky
+# round doesn't top the board.
 AVERAGE_TEST_LIMIT = 50
 AVERAGE_MAX_AGE_DAYS = 365
+AVERAGE_MIN_SESSIONS = 5
 
 
 def _pct(made: int, attempts: int) -> float:
@@ -364,7 +421,8 @@ def get_leaderboard(mode: str = "daily", day: str | None = None):
       date that has at least one complete test, newest first) so the client's date
       picker can offer only days with data.
     - `average`: each player's most recent complete tests, at most AVERAGE_TEST_LIMIT
-      of them and none older than AVERAGE_MAX_AGE_DAYS, pooled into one percentage.
+      of them and none older than AVERAGE_MAX_AGE_DAYS, pooled into one percentage. A
+      player with fewer than AVERAGE_MIN_SESSIONS qualifying tests is left off.
     - `best`: each player's single best complete test ever, by its overall %; it never
       falls off. Ties resolve to the more recent test.
     """
@@ -374,6 +432,22 @@ def get_leaderboard(mode: str = "daily", day: str | None = None):
         if mode == "daily":
             return _leaderboard_daily(conn, day or date.today().isoformat())
         return _leaderboard_aggregate(conn, mode)
+
+
+def _miss_subs_for_day(conn, day: str) -> set[str]:
+    """Players (subs) with at least one directional miss recorded on `day`'s test."""
+    return {
+        r["sub"]
+        for r in conn.execute(
+            "SELECT DISTINCT p.owner_sub AS sub FROM putts p "
+            "JOIN batches b ON b.batch_id = p.batch_id AND b.owner_sub = p.owner_sub "
+            "JOIN tests t ON t.test_id = b.test_id AND t.owner_sub = b.owner_sub "
+            "WHERE t.test_date = ? AND p.deleted_at IS NULL "
+            "AND p.made = 0 AND p.miss_type IS NOT NULL "
+            "AND b.deleted_at IS NULL AND t.deleted_at IS NULL",
+            (day,),
+        ).fetchall()
+    }
 
 
 def _leaderboard_daily(conn, day: str) -> dict:
@@ -391,6 +465,10 @@ def _leaderboard_daily(conn, day: str) -> dict:
         (day,),
     ).fetchall()
 
+    # Players with a directional miss recorded on `day`, so the client can flag whose
+    # row opens to a miss map (complete or mid-round, the map covers the day's test).
+    miss_subs = _miss_subs_for_day(conn, day)
+
     users: dict[str, dict] = {}
     totals: dict[str, list[int]] = {}  # sub -> [made, attempts]
     for r in rows:
@@ -405,7 +483,15 @@ def _leaderboard_daily(conn, day: str) -> dict:
         totals[r["sub"]][0] += r["made"]
         totals[r["sub"]][1] += r["attempts"]
     entries = _rank(
-        [{**u, "attempts": totals[sub][1], "overall_pct": _pct(*totals[sub])} for sub, u in users.items()]
+        [
+            {
+                **u,
+                "attempts": totals[sub][1],
+                "overall_pct": _pct(*totals[sub]),
+                "has_misses": sub in miss_subs,
+            }
+            for sub, u in users.items()
+        ]
     )
 
     # Who has started `day`'s test, with their make-% so far by distance. A player
@@ -431,7 +517,12 @@ def _leaderboard_daily(conn, day: str) -> dict:
             progress[r["sub"]] = player
         player["stats"].append(_stat(r["distance"], r["made"], r["attempts"]))
     in_progress = [
-        {**player, "done": len(player["stats"]), "remaining": TEST_DISTANCE_COUNT - len(player["stats"])}
+        {
+            **player,
+            "done": len(player["stats"]),
+            "remaining": TEST_DISTANCE_COUNT - len(player["stats"]),
+            "has_misses": player["sub"] in miss_subs,
+        }
         for player in progress.values()
         if len(player["stats"]) < TEST_DISTANCE_COUNT
     ]
@@ -476,6 +567,22 @@ def _leaderboard_aggregate(conn, mode: str) -> dict:
         params,
     ).fetchall()
 
+    # Tests within this board's selection that carry a directional miss, so an entry
+    # is flagged when the tests it graphs include any — matching the miss map's scope.
+    miss_test_ids = {
+        r["test_id"]
+        for r in conn.execute(
+            "SELECT DISTINCT b.test_id AS test_id FROM putts p "
+            "JOIN batches b ON b.batch_id = p.batch_id AND b.owner_sub = p.owner_sub "
+            "JOIN tests t ON t.test_id = b.test_id AND t.owner_sub = b.owner_sub "
+            "WHERE p.deleted_at IS NULL AND p.made = 0 AND p.miss_type IS NOT NULL "
+            "AND b.deleted_at IS NULL AND t.deleted_at IS NULL "
+            f"AND b.test_id IN ({COMPLETE_TESTS_SUBQUERY}) "
+            f"{date_clause}",
+            params,
+        ).fetchall()
+    }
+
     # Group the flat rows into per-player lists of tests, newest first (the ORDER BY
     # holds each test's distance rows contiguous, so a new test_id starts a new test).
     meta: dict[str, dict] = {}
@@ -488,6 +595,10 @@ def _leaderboard_aggregate(conn, mode: str) -> dict:
         tests[-1]["stats"].append(_stat(r["distance"], r["made"], r["attempts"]))
 
     entries = []
+    # Average board: every player's pooled pct per distance feeds the all-players
+    # baseline line, even players short of the session minimum — their data is still
+    # sound for an average, the minimum only governs who ranks on the board.
+    global_pcts: dict[int, list[float]] = {}
     for sub, tests in tests_by_user.items():
         if mode == "average":
             # Pool the most recent tests (already newest-first) by distance. `sessions`
@@ -500,17 +611,36 @@ def _leaderboard_aggregate(conn, mode: str) -> dict:
                     acc[0] += s["made"]
                     acc[1] += s["attempts"]
             stats = [_stat(d, m, a) for d, (m, a) in sorted(pooled.items())]
-            extra = {"sessions": len(chosen)}
+            for s in stats:
+                global_pcts.setdefault(s["distance"], []).append(s["pct"])
+            # A player with too few qualifying sessions still feeds the line above but
+            # is left off the ranked board.
+            if len(chosen) < AVERAGE_MIN_SESSIONS:
+                continue
+            extra = {
+                "sessions": len(chosen),
+                "has_misses": any(t["test_id"] in miss_test_ids for t in chosen),
+            }
         else:  # best: the single highest-% test; max keeps the first (newest) on ties
             best = max(tests, key=lambda t: _pct(*_test_totals(t)))
             stats = sorted(best["stats"], key=lambda s: s["distance"])
-            extra = {"date": best["test_date"]}  # the day of that best test, for the subtext
+            extra = {  # the day of that best test, for the subtext
+                "date": best["test_date"],
+                "has_misses": best["test_id"] in miss_test_ids,
+            }
         made = sum(s["made"] for s in stats)
         attempts = sum(s["attempts"] for s in stats)
         entries.append({**meta[sub], "stats": stats, "attempts": attempts, "overall_pct": _pct(made, attempts), **extra})
 
+    # The all-players average line: the unweighted mean of every player's pooled pct at
+    # each distance, like /stats' global average. Empty for the Best board.
+    global_line = [
+        {"distance": d, "made": 0, "attempts": 0, "pct": sum(pcts) / len(pcts)}
+        for d, pcts in sorted(global_pcts.items())
+    ]
+
     version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
-    return {"version": version, "users": _rank(entries), "in_progress": [], "days": []}
+    return {"version": version, "users": _rank(entries), "in_progress": [], "days": [], "global": global_line}
 
 
 def _test_totals(test: dict) -> tuple[int, int]:

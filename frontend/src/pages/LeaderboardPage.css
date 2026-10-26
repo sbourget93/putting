@@ -122,14 +122,34 @@
   overflow-wrap: anywhere;
 }
 
+/* The name column grows to fill the row (board-namecol flex: 1), pushing the trailing
+   group — an optional miss flag and the score — to the right edge, so neither needs
+   its own auto margin. */
 .board-pct {
   flex: 0 0 auto;
-  margin-left: auto;
   min-width: 3rem;
   text-align: right;
   font-weight: 700;
   font-size: 1.1rem;
   font-variant-numeric: tabular-nums;
+  color: var(--brand);
+}
+
+/* The name and, when the player has tracked misses, a small target icon beside it,
+   on one line above the subtext. min-width: 0 lets the name ellipsis-truncate while
+   the icon stays visible. */
+.board-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+/* The "misses tracked" marker: a small brand-colored target to the right of the name. */
+.target-icon {
+  flex: 0 0 auto;
+  width: 13.5px;
+  height: 13.5px;
   color: var(--brand);
 }
 
@@ -143,7 +163,6 @@
    glyph and how many batches are still owed (matching the profile's incomplete row). */
 .board-remaining {
   flex: 0 0 auto;
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
