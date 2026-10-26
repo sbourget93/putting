@@ -110,15 +110,26 @@
   color: color-mix(in srgb, CanvasText 50%, Canvas);
 }
 
+/* The name column grows to fill the row (board-namecol flex: 1), pushing the trailing
+   group — an optional miss flag and the score — to the right edge, so neither needs
+   its own auto margin. */
 .board-pct {
   flex: 0 0 auto;
-  margin-left: auto;
   min-width: 3rem;
   text-align: right;
   font-weight: 700;
   font-size: 1.1rem;
   font-variant-numeric: tabular-nums;
   color: var(--brand);
+}
+
+/* The "misses tracked" flag: a faded "M" before the score, in the same muted
+   formatting as the row's subtext. */
+.miss-flag {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: color-mix(in srgb, CanvasText 50%, Canvas);
 }
 
 /* The expanded graph sits inside the entry as a standard chart panel (gray
@@ -131,7 +142,6 @@
    glyph and how many batches are still owed (matching the profile's incomplete row). */
 .board-remaining {
   flex: 0 0 auto;
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;

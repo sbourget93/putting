@@ -1,0 +1,66 @@
+/* Putts / Misses switch at the top of the chart panel: equal-width radio pills,
+   the same segmented pattern as the leaderboard board control. */
+.top-view-toggle {
+  display: flex;
+  gap: 0.3rem;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  border: 0;
+}
+
+.top-view-toggle legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.top-view-option {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: color-mix(in srgb, CanvasText 65%, Canvas);
+  cursor: pointer;
+}
+
+.top-view-option.active {
+  background: var(--brand);
+  color: var(--brand-text);
+}
+
+/* The radio itself is invisible; the label pill is the control. */
+.top-view-option input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* Pin the whole Putts view to the exact height of the square miss map (its width,
+   capped at 20rem) so toggling between Putts and Misses never shifts the content
+   below. The chart drops its aspect ratio and stretches to fill the box width and
+   the height left after reserving the legend row, so it spans the full panel width
+   with no left/right whitespace. */
+.top-view-chart {
+  margin-top: 0.4rem;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-height: 20rem;
+}
+
+.top-view-chart .putting-chart-fill {
+  display: block;
+  width: 100%;
+  height: calc(100% - 1.8rem);
+}

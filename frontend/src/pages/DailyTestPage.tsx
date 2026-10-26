@@ -20,7 +20,7 @@ import { useUserData } from '../offline/aggregates/userData'
 import { newEvent } from '../offline/commands'
 import type { CommandEvent } from '../offline/types'
 import { usePuttingData } from '../lib/usePuttingData'
-import StatsChartPanel from '../components/StatsChartPanel'
+import ToggleChartPanel from '../components/ToggleChartPanel'
 import PuttEditModal from '../components/PuttEditModal'
 import PuttDeleteModal from '../components/PuttDeleteModal'
 import MissPrompt from '../components/MissPrompt'
@@ -90,6 +90,22 @@ function DailyTestPage() {
     }
     return map
   }, [putts])
+
+  // Today's misses by location, for the heat map. Scoped to today's batches, and
+  // only directional misses count (a count-mode miss has no miss_type), mirroring
+  // the player profile's lifetime distribution. total is the denominator for each
+  // cell's share, so the panel shows only when a direction was recorded today.
+  const todayMisses = useMemo(() => {
+    const todayBatchIds = new Set(todays.map((b) => b.batch_id))
+    const counts: Partial<Record<MissType, number>> = {}
+    let total = 0
+    for (const p of putts) {
+      if (p.made || !p.miss_type || !todayBatchIds.has(p.batch_id)) continue
+      counts[p.miss_type] = (counts[p.miss_type] ?? 0) + 1
+      total++
+    }
+    return { counts, total }
+  }, [putts, todays])
 
   // Lifetime baseline arrives pre-aggregated by distance (excluding today), so the
   // summary and the chart's grey line compare today against history, not itself.
@@ -304,13 +320,16 @@ function DailyTestPage() {
 
       {complete && <CompleteSummary todayPct={overallPct(todays)} lifetimePct={lifetimePct} />}
 
-      <StatsChartPanel
-        title="Today's Putts"
+      <ToggleChartPanel
+        seriesLabel="Today"
         batches={todays}
         baselineStats={baselineStats}
+        missCounts={todayMisses.counts}
+        missTotal={todayMisses.total}
+        showMissToggle={trackMisses}
         emptyNote="No putts recorded yet today."
-        alwaysRenderChart
         faded={readOnly}
+        alwaysRenderChart
       />
 
       {!complete && (
@@ -441,7 +460,6 @@ function TodayBatches({
   const ordered = [...batches].sort((a, b) => a.distance - b.distance)
   return (
     <div className="panel today-batches">
-      <h2 className="section-title">Today's putts</h2>
       <ul className="batch-lines">
         {ordered.map((b) => {
           const misses = missesByBatch[b.batch_id] ?? []

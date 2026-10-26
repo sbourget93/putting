@@ -91,17 +91,29 @@ export interface UserMissesData {
 }
 
 /**
- * One player's missed putts grouped by location (GET /api/misses), complete tests
- * only, fetched online like the rest of the profile. `sub = null` resolves the
- * default owner server-side, matching useUserHistory.
+ * One player's missed putts grouped by location (GET /api/misses), fetched online
+ * like the rest of the profile. `sub = null` resolves the default owner server-side,
+ * matching useUserHistory. The optional scope matches the map to the graph beside it:
+ * by default the lifetime distribution over complete tests; `day` (a local
+ * YYYY-MM-DD) just that day's test (the Daily leaderboard's per-day map); `average`
+ * the same tests the Average board pools.
  */
-export function useUserMisses(sub: string | null): UserMissesData {
+export function useUserMisses(
+  sub: string | null,
+  opts?: { day?: string; scope?: 'average' },
+): UserMissesData {
+  const day = opts?.day
+  const scope = opts?.scope
   const { data, loading, error } = useResilientFetch(async () => {
-    const q = sub ? `?sub=${encodeURIComponent(sub)}` : ''
-    const res = await fetchWithTimeout(`/api/misses${q}`)
+    const params = new URLSearchParams()
+    if (sub) params.set('sub', sub)
+    if (day) params.set('day', day)
+    if (scope) params.set('scope', scope)
+    const q = params.toString()
+    const res = await fetchWithTimeout(`/api/misses${q ? `?${q}` : ''}`)
     if (!res.ok) throw new Error(`Could not load misses (${res.status})`)
     return (await res.json()) as { counts: Partial<Record<MissType, number>>; total: number }
-  }, [sub])
+  }, [sub, day, scope])
 
   return { counts: data?.counts ?? {}, total: data?.total ?? 0, loading, error }
 }
