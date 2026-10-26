@@ -33,6 +33,18 @@ export interface AppSetting {
 /** Setting keys the app understands. Kept in step with backend KNOWN_SETTINGS. */
 export const TRACK_MISSES = 'track_misses'
 
+/** A stored user-data value as the server projection returns it
+ *  (see backend/projections/user_data.py). A generic per-user key/value store;
+ *  one row per `(owner, key)`, a key the user has never written has no row. */
+export interface UserDatum {
+  user_data_id: string
+  key: string
+  value: string
+}
+
+/** User-data keys the app understands. Kept in step with backend KNOWN_KEYS. */
+export const NOTES = 'notes'
+
 /** A putt batch as the server projection returns it (see backend/projections/batches.py). */
 export interface Batch {
   batch_id: string

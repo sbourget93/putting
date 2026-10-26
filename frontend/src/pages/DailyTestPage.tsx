@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSync } from '../offline/SyncContext'
 import { usePutts } from '../offline/aggregates/putts'
 import { useUserSettings } from '../offline/aggregates/userSettings'
+import { useUserData } from '../offline/aggregates/userData'
 import { newEvent } from '../offline/commands'
 import type { CommandEvent } from '../offline/types'
 import { usePuttingData } from '../lib/usePuttingData'
@@ -24,9 +25,11 @@ import PuttEditModal from '../components/PuttEditModal'
 import PuttDeleteModal from '../components/PuttDeleteModal'
 import MissPrompt from '../components/MissPrompt'
 import MissEditModal from '../components/MissEditModal'
+import NotesModal from '../components/NotesModal'
 import {
   MISS_GLYPH,
   MISS_LABELS,
+  NOTES,
   TEST_PUTTS,
   TRACK_MISSES,
   localDay,
@@ -45,9 +48,23 @@ function DailyTestPage() {
   const { enqueue } = useSync()
   const putts = usePutts()
   const settings = useUserSettings()
+  const userData = useUserData()
   const { test, todayBatches, baselineStats, readOnly, loading, error } = usePuttingData()
   const [editing, setEditing] = useState<Batch | null>(null)
   const [deleting, setDeleting] = useState<Batch | null>(null)
+  const [notesOpen, setNotesOpen] = useState(false)
+
+  // The player's private notes, from the user_data aggregate. Absent until first
+  // saved, so an empty string stands in for no row.
+  const notesRow = userData.find((d) => d.key === NOTES)
+  const notes = notesRow?.value ?? ''
+
+  // Reuse the existing record's id so the backend upsert updates that row rather than
+  // creating a second; a first-ever save mints a new client id.
+  function saveNotes(next: string) {
+    const id = notesRow?.user_data_id ?? crypto.randomUUID()
+    enqueue([newEvent('UserDataChanged', id, { key: NOTES, value: next })])
+  }
 
   // Opt-in miss tracking swaps the count buttons for the per-putt miss entry. The
   // setting is a writer's own preference, so a read-only viewer never has it set.
@@ -255,13 +272,27 @@ function DailyTestPage() {
     <section className="page daily-test">
       <div className="page-head">
         <h1>Daily Putts</h1>
-        {complete ? (
-          <span className="progress-pill complete-pill">Complete</span>
-        ) : (
-          <span className="progress-pill">
-            {remaining.length} {remaining.length === 1 ? 'batch' : 'batches'} remaining
-          </span>
-        )}
+        <div className="page-head-actions">
+          {complete ? (
+            <span className="progress-pill complete-pill">Complete</span>
+          ) : (
+            <span className="progress-pill">
+              {remaining.length} {remaining.length === 1 ? 'batch' : 'batches'} remaining
+            </span>
+          )}
+          {!readOnly && (
+            <button
+              type="button"
+              className="notes-btn"
+              aria-label="Notes"
+              onClick={() => setNotesOpen(true)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM8 7h8v2H8V7zm0 4h8v2H8v-2zm0 4h5v2H8v-2z" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {readOnly && (
@@ -348,6 +379,10 @@ function DailyTestPage() {
           onConfirm={deletePutt}
           onCancel={() => setDeleting(null)}
         />
+      )}
+
+      {notesOpen && (
+        <NotesModal notes={notes} onSave={saveNotes} onClose={() => setNotesOpen(false)} />
       )}
     </section>
   )

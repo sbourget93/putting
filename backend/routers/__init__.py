@@ -6,7 +6,14 @@ in `main.py` changes. Access level is expressed per route (or per router, as in
 `admin`) via dependencies, not by where a route lives.
 """
 
-from . import admin, commands, putting, settings, users
+from . import admin, commands, putting, settings, user_data, users
 
 # Registered routers, in include order. Add new domain modules here.
-ROUTERS = (commands.router, users.router, putting.router, settings.router, admin.router)
+ROUTERS = (
+    commands.router,
+    users.router,
+    putting.router,
+    settings.router,
+    user_data.router,
+    admin.router,
+)
