@@ -1,10 +1,17 @@
 /* A tall editor sheet: it reuses the shared .modal-backdrop/.modal shell but grows
-   to most of the viewport so the textarea has room to read and write at length. */
+   to most of the viewport so the textarea has room to read and write at length.
+   Keep an inset from the viewport edges even on a narrow phone (where the shell's
+   30rem cap doesn't bite) so the sheet reads as a floating card rather than matching
+   the page content behind it, and give it a theme-aware border so its edge stays
+   visible in dark mode, where the shell's dark drop shadow disappears. */
 .notes-modal {
   display: flex;
   flex-direction: column;
   height: min(80svh, 40rem);
   max-height: calc(100svh - 2rem - env(safe-area-inset-bottom));
+  max-width: min(30rem, calc(100% - 2rem));
+  border: 1px solid color-mix(in srgb, CanvasText 32%, Canvas);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
 }
 
 .notes-modal-head {
