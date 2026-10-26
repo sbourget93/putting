@@ -70,12 +70,20 @@ function ExpandedChart({
   )
 }
 
-/** A small "M" pill marking a row whose expanded view has a miss map to show. */
-function MissFlag() {
+/** A small target icon marking a player whose expanded view has a miss map to show. */
+function TargetIcon() {
   return (
-    <span className="miss-flag" aria-label="Misses tracked" title="Misses tracked">
-      M
-    </span>
+    <svg
+      className="target-icon"
+      viewBox="0 0 24 24"
+      role="img"
+      aria-label="Misses tracked"
+      focusable="false"
+    >
+      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
+      <circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" strokeWidth="2" />
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+    </svg>
   )
 }
 
@@ -203,7 +211,10 @@ function LeaderboardPage() {
                     <img className="board-avatar" src={entry.picture} alt="" referrerPolicy="no-referrer" />
                   )}
                   <span className="board-namecol">
-                    <span className="board-name">{entry.name}</span>
+                    <span className="board-name-row">
+                      <span className="board-name">{entry.name}</span>
+                      {entry.has_misses && <TargetIcon />}
+                    </span>
                     {mode === 'average' && entry.sessions != null && (
                       <span className="board-sub">
                         {entry.sessions} {entry.sessions === 1 ? 'session' : 'sessions'} included
@@ -216,7 +227,6 @@ function LeaderboardPage() {
                       <span className="board-sub board-message">{entry.message}</span>
                     )}
                   </span>
-                  {entry.has_misses && <MissFlag />}
                   <span className="board-pct">{Math.round(entry.overall_pct)}%</span>
                 </button>
 
@@ -257,9 +267,11 @@ function LeaderboardPage() {
                     <img className="board-avatar" src={p.picture} alt="" referrerPolicy="no-referrer" />
                   )}
                   <span className="board-namecol">
-                    <span className="board-name">{p.name}</span>
+                    <span className="board-name-row">
+                      <span className="board-name">{p.name}</span>
+                      {p.has_misses && <TargetIcon />}
+                    </span>
                   </span>
-                  {p.has_misses && <MissFlag />}
                   <span className="board-remaining">
                     <CautionIcon />
                     {p.remaining} {p.remaining === 1 ? 'batch' : 'batches'} remaining

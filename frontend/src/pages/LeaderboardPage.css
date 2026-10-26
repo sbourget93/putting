@@ -135,13 +135,22 @@
   color: var(--brand);
 }
 
-/* The "misses tracked" flag: a faded "M" before the score, in the same muted
-   formatting as the row's subtext. */
-.miss-flag {
+/* The name and, when the player has tracked misses, a small target icon beside it,
+   on one line above the subtext. min-width: 0 lets the name ellipsis-truncate while
+   the icon stays visible. */
+.board-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+/* The "misses tracked" marker: a small brand-colored target to the right of the name. */
+.target-icon {
   flex: 0 0 auto;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: color-mix(in srgb, CanvasText 50%, Canvas);
+  width: 13.5px;
+  height: 13.5px;
+  color: var(--brand);
 }
 
 /* The expanded graph sits inside the entry as a standard chart panel (gray
