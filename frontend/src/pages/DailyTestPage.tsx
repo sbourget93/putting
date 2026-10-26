@@ -12,7 +12,7 @@
  * A signed-in writer records their own day; logged-out or read-only visitors see
  * a read-only day.
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSync } from '../offline/SyncContext'
 import { usePutts } from '../offline/aggregates/putts'
 import { useUserSettings } from '../offline/aggregates/userSettings'
@@ -29,6 +29,7 @@ import NotesModal from '../components/NotesModal'
 import {
   MISS_GLYPH,
   MISS_LABELS,
+  MESSAGE_MAX_LENGTH,
   NOTES,
   TEST_PUTTS,
   TRACK_MISSES,
@@ -280,6 +281,13 @@ function DailyTestPage() {
     setDeleting(null)
   }
 
+  // Save (or clear) the day's message. Only reachable once the test exists, so
+  // testId is set; the server caps the length and the input bounds it too.
+  function saveMessage(message: string) {
+    if (!testId) return
+    enqueue([newEvent('TestMessageSet', testId, { message })])
+  }
+
   if (loading) return <section className="page"><p className="muted">Loading…</p></section>
 
   const complete = remaining.length === 0
@@ -318,7 +326,13 @@ function DailyTestPage() {
       )}
       {error && <p className="error" role="alert">{error}</p>}
 
-      {complete && <CompleteSummary todayPct={overallPct(todays)} lifetimePct={lifetimePct} />}
+      {complete && (
+        <CompleteSummary todayPct={overallPct(todays)} lifetimePct={lifetimePct}>
+          {!readOnly && testId && (
+            <MessageInput message={test?.message ?? ''} onSave={saveMessage} />
+          )}
+        </CompleteSummary>
+      )}
 
       <ToggleChartPanel
         seriesLabel="Today"
@@ -415,9 +429,11 @@ function DailyTestPage() {
 function CompleteSummary({
   todayPct,
   lifetimePct,
+  children,
 }: {
   todayPct: number | null
   lifetimePct: number | null
+  children?: ReactNode
 }) {
   const today = Math.round(todayPct ?? 0)
   const hasBaseline = lifetimePct != null
@@ -435,6 +451,59 @@ function CompleteSummary({
             : `${Math.abs(diff)}% ${diff > 0 ? 'better' : 'worse'} than your lifetime average of ${lifetime}%`}
         </p>
       )}
+      {children}
+    </div>
+  )
+}
+
+/**
+ * The day's optional message, at the bottom of the complete-summary panel. It
+ * appears beside the player's score on the daily leaderboard. Edits are kept
+ * locally while the field is focused and committed on blur, so a save fires once
+ * per edit rather than on every keystroke. An empty value clears the note.
+ */
+function MessageInput({ message, onSave }: { message: string; onSave: (message: string) => void }) {
+  const [draft, setDraft] = useState(message)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Re-seed from the snapshot when it changes under us (a sync, another device),
+  // but only while the field isn't being edited, so typing is never clobbered.
+  const editing = useRef(false)
+  useEffect(() => {
+    if (!editing.current) setDraft(message)
+  }, [message])
+
+  // Grow the box to fit its content: start from one line and expand as the message
+  // wraps. Reset to auto first so it shrinks back when text is removed.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [draft])
+
+  function commit() {
+    editing.current = false
+    const next = draft.trim()
+    if (next !== message.trim()) onSave(next)
+  }
+
+  return (
+    <div className="daily-message">
+      <textarea
+        ref={inputRef}
+        className="daily-message-input"
+        aria-label="Add a message to your daily leaderboard score"
+        value={draft}
+        maxLength={MESSAGE_MAX_LENGTH}
+        rows={1}
+        placeholder="Add a message!"
+        onFocus={() => {
+          editing.current = true
+        }}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+      />
     </div>
   )
 }

@@ -2,9 +2,9 @@
  * The `tests` aggregate for the sync engine (daily tests).
  *
  * Scoped to Daily Putts: `fetch` reads only *today's* test from the compact
- * /api/daily payload, so the offline cache never grows with history. Its only
- * event is TestStarted, so `reduce` only ever adds a row (today's, when the day's
- * first putt starts the test). Mirrors backend/projections/tests.py.
+ * /api/daily payload, so the offline cache never grows with history. TestStarted
+ * adds today's row (when the day's first putt starts the test); TestMessageSet
+ * updates that row's message. Mirrors backend/projections/tests.py.
  */
 import type { AggregateDescriptor, CommandEvent, Snapshot } from '../types'
 import { useAggregateRows } from '../SyncContext'
@@ -26,7 +26,11 @@ async function fetchTests(): Promise<Snapshot<Test>> {
 function reduce(rows: Test[], ev: CommandEvent): Test[] {
   switch (ev.type) {
     case 'TestStarted':
-      return [...rows, { test_id: ev.aggregate_id, test_date: str(ev.data, 'test_date') }]
+      return [...rows, { test_id: ev.aggregate_id, test_date: str(ev.data, 'test_date'), message: null }]
+    case 'TestMessageSet':
+      return rows.map((r) =>
+        r.test_id === ev.aggregate_id ? { ...r, message: str(ev.data, 'message').trim() || null } : r,
+      )
     default:
       return rows
   }
@@ -36,6 +40,8 @@ function describe(ev: CommandEvent): string {
   switch (ev.type) {
     case 'TestStarted':
       return `Start daily test ${str(ev.data, 'test_date')}`
+    case 'TestMessageSet':
+      return 'Set daily message'
     default:
       return ev.type
   }
@@ -43,7 +49,7 @@ function describe(ev: CommandEvent): string {
 
 export const testsDescriptor: AggregateDescriptor<Test> = {
   name: NAME,
-  eventTypes: ['TestStarted'],
+  eventTypes: ['TestStarted', 'TestMessageSet'],
   fetch: fetchTests,
   reduce,
   describe,

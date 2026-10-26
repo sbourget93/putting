@@ -7,10 +7,15 @@
  * path, and the pages all agree on the same rules without importing each other.
  */
 
+/** The longest message a day's test may carry. Kept in step with the backend's
+ *  MESSAGE_MAX_LENGTH (backend/projections/tests.py). */
+export const MESSAGE_MAX_LENGTH = 1000
+
 /** A daily test as the server projection returns it (see backend/projections/tests.py). */
 export interface Test {
   test_id: string
   test_date: string // local calendar day, YYYY-MM-DD
+  message?: string | null // optional note shown alongside the daily leaderboard score
 }
 
 /** A user identity as the server projection returns it (see backend/projections/users.py).

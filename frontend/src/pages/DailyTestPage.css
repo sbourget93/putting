@@ -239,6 +239,39 @@
   fill: currentColor;
 }
 
+/* The day's message, at the bottom of the complete-summary panel. A hairline rule
+   separates it from the score/compare text above. */
+.daily-message {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
+}
+
+.daily-message-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  /* One line by default; JS grows the height to fit as the message wraps. */
+  resize: none;
+  overflow: hidden;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid color-mix(in srgb, CanvasText 25%, Canvas);
+  border-radius: 0.5rem;
+  background: Canvas;
+  color: CanvasText;
+  font: inherit;
+  line-height: 1.3;
+}
+
+.daily-message-input::placeholder {
+  color: color-mix(in srgb, CanvasText 45%, Canvas);
+}
+
+.daily-message-input:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .made-btn:active {
     background: Canvas;

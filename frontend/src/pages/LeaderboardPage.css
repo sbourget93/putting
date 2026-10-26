@@ -110,6 +110,18 @@
   color: color-mix(in srgb, CanvasText 50%, Canvas);
 }
 
+/* A player's day message. Unlike the date/session subtext it is free prose, so it
+   wraps to at most two lines and then truncates with an ellipsis, keeping a long
+   message from growing the row. */
+.board-message {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
 /* The name column grows to fill the row (board-namecol flex: 1), pushing the trailing
    group — an optional miss flag and the score — to the right edge, so neither needs
    its own auto margin. */

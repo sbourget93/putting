@@ -212,6 +212,9 @@ function LeaderboardPage() {
                     {mode === 'best' && entry.date && (
                       <span className="board-sub">{formatDay(entry.date)}</span>
                     )}
+                    {mode === 'daily' && entry.message && (
+                      <span className="board-sub board-message">{entry.message}</span>
+                    )}
                   </span>
                   {entry.has_misses && <MissFlag />}
                   <span className="board-pct">{Math.round(entry.overall_pct)}%</span>

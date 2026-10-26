@@ -30,6 +30,8 @@ export interface LeaderboardEntry {
   sessions?: number
   /** Best board only: the local YYYY-MM-DD of the player's best session. */
   date?: string
+  /** Daily board only: the optional note the player left on that day's test. */
+  message?: string | null
 }
 
 /** A player mid-round: the day's test started but not yet finished. */
