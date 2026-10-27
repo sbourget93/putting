@@ -52,6 +52,9 @@
   padding: 0;
   list-style: none;
   font-size: 0.8rem;
+  /* A fixed line-height (not `normal`) so the row's height is deterministic and the
+     Misses view can reserve an identical spacer. See ToggleChartPanel.css. */
+  line-height: 1.3;
   color: color-mix(in srgb, CanvasText 65%, Canvas);
 }
 

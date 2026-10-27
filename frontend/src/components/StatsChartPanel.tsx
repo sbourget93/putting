@@ -29,7 +29,6 @@ export default function StatsChartPanel({
   compare,
   footer,
   embedded = false,
-  chartFill = false,
 }: {
   title?: string
   /** The primary series as raw batches (aggregated here). Omit when passing `stats`. */
@@ -56,9 +55,6 @@ export default function StatsChartPanel({
   /** Render only the chart, legend and footer, with no surrounding panel or title,
    *  for a caller that supplies its own frame (e.g. the Daily Putts top panel). */
   embedded?: boolean
-  /** Stretch the chart to fill its container rather than keeping its aspect ratio,
-   *  so an embedded caller can pin it to a fixed-height box. */
-  chartFill?: boolean
 }) {
   const stats = statsProp ?? statsByDistance(batches)
   const baselineStats = baselineStatsProp ?? (baseline ? statsByDistance(baseline) : [])
@@ -89,7 +85,7 @@ export default function StatsChartPanel({
         <p className="muted">{emptyNote}</p>
       ) : (
         <>
-          <PuttingChart series={series} fill={chartFill} />
+          <PuttingChart series={series} />
           {showLegend && (
             <ul className="chart-legend">
               {showToday && (

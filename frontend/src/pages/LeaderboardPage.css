@@ -145,12 +145,14 @@
   min-width: 0;
 }
 
-/* The "misses tracked" marker: a small brand-colored target to the right of the name. */
+/* The "misses tracked" marker: a small muted-gray target to the right of the name.
+   A neutral, not the brand accent, so it reads as a quiet metadata flag rather than
+   competing with the score. */
 .target-icon {
   flex: 0 0 auto;
   width: 13.5px;
   height: 13.5px;
-  color: var(--brand);
+  color: color-mix(in srgb, CanvasText 45%, Canvas);
 }
 
 /* The expanded graph sits inside the entry as a standard chart panel (gray

@@ -3,8 +3,10 @@
  * Putts / Misses switch.
  *
  * When the player tracks misses, a segmented toggle swaps the chart for their miss
- * heat map, and the chart is pinned to the map's height so toggling never resizes
- * the panel (see ToggleChartPanel.css). Without miss tracking it's just the chart.
+ * heat map. The chart keeps its natural proportions (the same size it has with no
+ * miss tracking), and the square heat map scales down to fit that same box, so
+ * toggling never resizes the panel (see ToggleChartPanel.css). Without miss
+ * tracking it's just the chart.
  *
  * Presentational: the caller supplies the primary series (raw `batches` or
  * pre-aggregated `stats`), the all-time `baselineStats` comparison line, and the
@@ -80,11 +82,11 @@ export default function ToggleChartPanel({
         ))}
       </fieldset>
       {view === 'putts' ? (
-        // Pinned to the miss map's height so the panel doesn't jump as views toggle.
+        // Natural chart proportions — the same size it has with no miss tracking.
+        // The Misses view below matches this box's height so the panel doesn't jump.
         <div className="top-view-chart">
           <StatsChartPanel
             embedded
-            chartFill
             batches={batches}
             stats={stats}
             baselineStats={baselineStats}
@@ -96,8 +98,12 @@ export default function ToggleChartPanel({
         </div>
       ) : (
         // Always the basket, even with no misses yet: an empty map (no tints) reads
-        // as "nowhere missed so far" and keeps the panel height steady.
-        <MissHeatBasket embedded counts={missCounts} total={missTotal} />
+        // as "nowhere missed so far". The square map scales to fit the chart's box.
+        <div className="top-view-misses">
+          <div className="top-view-plot">
+            <MissHeatBasket embedded counts={missCounts} total={missTotal} />
+          </div>
+        </div>
       )}
     </div>
   )
