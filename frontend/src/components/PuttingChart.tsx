@@ -59,12 +59,8 @@ function dotTitle(s: SeriesSpec, p: DistanceStat): string {
 
 export default function PuttingChart({
   series,
-  fill = false,
 }: {
   series: SeriesSpec[]
-  /** Stretch the chart to fill its container's width and height instead of keeping
-   *  the 340×240 aspect ratio, so a caller can pin it to a fixed-height box. */
-  fill?: boolean
 }) {
   const drawn = series.filter((s) => s.stats.length > 0)
 
@@ -126,11 +122,11 @@ export default function PuttingChart({
 
   return (
     <svg
-      className={fill ? 'putting-chart putting-chart-fill' : 'putting-chart'}
+      className="putting-chart"
       viewBox={`0 0 ${W} ${H}`}
       role="img"
       aria-label={summary}
-      preserveAspectRatio={fill ? 'none' : 'xMidYMid meet'}
+      preserveAspectRatio="xMidYMid meet"
     >
       {/* Y gridlines + labels */}
       {Y_TICKS.map((t) => (

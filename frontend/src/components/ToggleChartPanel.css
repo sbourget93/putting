@@ -47,20 +47,38 @@
   height: 0;
 }
 
-/* Pin the whole Putts view to the exact height of the square miss map (its width,
-   capped at 20rem) so toggling between Putts and Misses never shifts the content
-   below. The chart drops its aspect ratio and stretches to fill the box width and
-   the height left after reserving the legend row, so it spans the full panel width
-   with no left/right whitespace. */
-.top-view-chart {
+/* The Putts view renders the chart at its natural proportions (the same size it has
+   on a board with no miss tracking). The Misses view below matches this view's
+   height so toggling never shifts the content below. */
+.top-view-chart,
+.top-view-misses {
   margin-top: 0.4rem;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  max-height: 20rem;
 }
 
-.top-view-chart .putting-chart-fill {
-  display: block;
+/* A plot box the exact shape and height of the putts chart's own plot (its 340×240
+   viewBox), with the square miss map scaled down to fit inside it and centred. */
+.top-view-misses .top-view-plot {
   width: 100%;
-  height: calc(100% - 1.8rem);
+  aspect-ratio: 340 / 240;
+  display: flex;
+  justify-content: center;
+}
+
+.top-view-misses .miss-heat {
+  width: auto;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+/* Reserve a row below the map that matches the chart legend's box exactly: the same
+   0.5rem top margin and a single line at the legend's font-size × its fixed
+   line-height (see .chart-legend in PuttingChart.css). So the Misses view is
+   precisely as tall as the Putts view (chart + legend) and the page doesn't shift
+   on toggle. */
+.top-view-misses::after {
+  content: '';
+  display: block;
+  margin-top: 0.5rem;
+  height: calc(0.8rem * 1.3);
 }
