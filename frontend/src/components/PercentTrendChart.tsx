@@ -11,7 +11,15 @@ import './PuttingChart.css'
 export interface TrendPoint {
   day: string // YYYY-MM-DD
   pct: number // 0–100
+  // False for a test outside the Average leaderboard's sample (older than its year
+  // window, or past its most-recent limit); such points are drawn muted gray rather
+  // than brand. Undefined/true draws brand, so callers that don't care are unaffected.
+  inSample?: boolean
 }
+
+// Muted dot fill for points outside the Average sample. Theme-aware via CanvasText,
+// matching the chart's other neutral marks.
+const OUT_OF_SAMPLE = 'color-mix(in srgb, CanvasText 40%, Canvas)'
 
 const W = 340
 const H = 96
@@ -63,7 +71,6 @@ export default function PercentTrendChart({ points }: { points: TrendPoint[] }) 
   const y = (pct: number) => PAD.top + (1 - (pct - lo) / yRange) * PLOT_H
 
   const coords = pts.map((p) => ({ ...p, cx: x(dayTime(p.day)), cy: y(p.pct) }))
-  const line = coords.map((c) => `${c.cx},${c.cy}`).join(' ')
 
   // Label the ends (and the middle when there's room), anchored so the first and
   // last dates never clip past the plot edges.
@@ -110,14 +117,23 @@ export default function PercentTrendChart({ points }: { points: TrendPoint[] }) 
         )
       })}
 
-      {/* One brand line + dots */}
-      {pts.length > 1 && (
-        <polyline
-          className="series-line"
-          points={line}
-          style={{ stroke: 'var(--brand)', strokeWidth: 2.4 }}
-        />
-      )}
+      {/* Line drawn per segment, so a segment touching an out-of-sample point is
+          muted gray like its dots while the sampled run stays brand. */}
+      {coords.slice(1).map((c, i) => {
+        const prev = coords[i]
+        const muted = prev.inSample === false || c.inSample === false
+        return (
+          <line
+            key={c.day}
+            className="series-line"
+            x1={prev.cx}
+            y1={prev.cy}
+            x2={c.cx}
+            y2={c.cy}
+            style={{ stroke: muted ? OUT_OF_SAMPLE : 'var(--brand)', strokeWidth: 2.4 }}
+          />
+        )
+      })}
       {coords.map((c) => (
         <circle
           key={c.day}
@@ -125,7 +141,7 @@ export default function PercentTrendChart({ points }: { points: TrendPoint[] }) 
           cx={c.cx}
           cy={c.cy}
           r={3.5}
-          style={{ fill: 'var(--brand)' }}
+          style={{ fill: c.inSample === false ? OUT_OF_SAMPLE : 'var(--brand)' }}
         >
           <title>
             {fmtDay(c.day)} — {Math.round(c.pct)}%

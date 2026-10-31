@@ -1,0 +1,9 @@
+/* The "misses tracked" marker: a small muted-gray target beside the name/date.
+   A neutral, not the brand accent, so it reads as a quiet metadata flag rather than
+   competing with the score. */
+.target-icon {
+  flex: 0 0 auto;
+  width: 13.5px;
+  height: 13.5px;
+  color: color-mix(in srgb, CanvasText 45%, Canvas);
+}

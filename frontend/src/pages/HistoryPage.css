@@ -237,8 +237,18 @@
   transform: rotate(90deg);
 }
 
-.test-date {
+/* Date plus the optional "misses tracked" target, grouped so the icon sits beside
+   the date while the group fills the row and pushes the trailing cell right. */
+.test-datecol {
   flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.test-date {
+  flex: 0 1 auto;
   min-width: 0;
   font-weight: 600;
   font-size: 0.95rem;

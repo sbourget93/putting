@@ -16,19 +16,57 @@ import { useUserHistory, useUserMisses, useUsers } from '../lib/useUserHistory'
 import { useGlobalStats } from '../lib/useGlobalStats'
 import { seriesColor } from '../lib/seriesColors'
 import StatsChartPanel from '../components/StatsChartPanel'
+import ToggleChartPanel from '../components/ToggleChartPanel'
 import PlayerCombobox from '../components/PlayerCombobox'
 import PercentTrendChart from '../components/PercentTrendChart'
 import MissHeatBasket from '../components/MissHeatBasket'
+import TargetIcon from '../components/TargetIcon'
 import {
   isTestComplete,
+  localDay,
   overallPct,
   overallPctFromStats,
   remainingTestDistances,
   statsByDistance,
   type Batch,
+  type DistanceStat,
   type Test,
 } from '../lib/putting'
+import { AVERAGE_MAX_AGE_DAYS, AVERAGE_TEST_LIMIT, shiftDay } from '../lib/leaderboard'
 import './HistoryPage.css'
+
+/**
+ * One expanded test's chart: that day's make-%-by-distance against the player's
+ * all-time line, with a Putts / Misses toggle when the day has tracked misses.
+ * Mirrors the Leaderboard's expanded row, so the two read identically. Misses are
+ * fetched per day, so this mounts when a row opens.
+ */
+function ExpandedDayChart({
+  sub,
+  day,
+  batches,
+  baselineStats,
+}: {
+  sub: string | null
+  day: string
+  batches: Batch[]
+  baselineStats: DistanceStat[]
+}) {
+  const { counts, total } = useUserMisses(sub, { day })
+  return (
+    <ToggleChartPanel
+      seriesLabel="This day"
+      batches={batches}
+      baselineStats={baselineStats}
+      baselineLabel="All-time"
+      missCounts={counts}
+      missTotal={total}
+      showMissToggle={total > 0}
+      emptyNote="No putts recorded."
+      alwaysRenderChart
+    />
+  )
+}
 
 /** Format a YYYY-MM-DD calendar day as a local, human-readable date. */
 function formatDay(day: string): string {
@@ -48,6 +86,8 @@ interface DayEntry {
   key: string
   day: string
   batches: Batch[]
+  /** The test carries at least one tracked miss (flagged with a target icon). */
+  hasMisses: boolean
 }
 
 /** Group batches under their daily test, newest first. */
@@ -64,7 +104,12 @@ function buildEntries(tests: Test[], batches: Batch[]): DayEntry[] {
   for (const t of tests) {
     const testBatches = byTest.get(t.test_id) ?? []
     if (testBatches.length === 0) continue
-    entries.push({ key: t.test_id, day: t.test_date, batches: testBatches })
+    entries.push({
+      key: t.test_id,
+      day: t.test_date,
+      batches: testBatches,
+      hasMisses: t.has_misses ?? false,
+    })
   }
 
   return entries.sort((a, b) => b.day.localeCompare(a.day))
@@ -128,13 +173,29 @@ function HistoryPage() {
     [completeEntries],
   )
 
-  // Each complete test's overall %, oldest to newest, for the trend graph.
+  // Days that fall in the Average leaderboard's sample: complete tests within its
+  // year window, capped at its most-recent limit (the session minimum is ignored —
+  // we only care which tests the sample would pool). completeEntries is newest-first,
+  // so filtering by the cutoff then taking the first N mirrors the backend's
+  // "test_date >= cutoff ORDER BY test_date DESC LIMIT N".
+  const inSampleDays = useMemo(() => {
+    const cutoff = shiftDay(localDay(), -AVERAGE_MAX_AGE_DAYS)
+    const sampled = completeEntries.filter((e) => e.day >= cutoff).slice(0, AVERAGE_TEST_LIMIT)
+    return new Set(sampled.map((e) => e.day))
+  }, [completeEntries])
+
+  // Each complete test's overall %, oldest to newest, for the trend graph. Points
+  // outside the Average sample are flagged so the chart draws them muted gray.
   const trend = useMemo(
     () =>
       completeEntries
-        .map((e) => ({ day: e.day, pct: Math.round(overallPct(e.batches) ?? 0) }))
+        .map((e) => ({
+          day: e.day,
+          pct: Math.round(overallPct(e.batches) ?? 0),
+          inSample: inSampleDays.has(e.day),
+        }))
         .reverse(),
-    [completeEntries],
+    [completeEntries, inSampleDays],
   )
 
   // The player's all-time make % across every complete test: their headline
@@ -305,7 +366,10 @@ function HistoryPage() {
                   onClick={() => toggle(entry.key)}
                 >
                   <span className={`chevron${isOpen ? ' open' : ''}`} aria-hidden="true">›</span>
-                  <span className="test-date">{formatDay(entry.day)}</span>
+                  <span className="test-datecol">
+                    <span className="test-date">{formatDay(entry.day)}</span>
+                    {entry.hasMisses && <TargetIcon />}
+                  </span>
                   {incomplete ? (
                     <span className="test-remaining">
                       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
@@ -327,12 +391,11 @@ function HistoryPage() {
 
                 {isOpen && (
                   <div className="entry-detail">
-                    <StatsChartPanel
+                    <ExpandedDayChart
+                      sub={selectedSub}
+                      day={entry.day}
                       batches={entry.batches}
                       baselineStats={baselineStats}
-                      emptyNote="No putts recorded."
-                      seriesLabel="This day"
-                      baselineLabel="All-time"
                     />
                   </div>
                 )}
