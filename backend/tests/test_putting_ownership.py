@@ -339,20 +339,30 @@ class PuttingOwnershipTest(unittest.TestCase):
             self.assertEqual(body["days"], [])
 
     def test_leaderboard_average_pools_recent_tests_within_a_year(self):
+        # Imported lazily (not at module scope) so this test file never pulls in
+        # s3_sync before test_s3_sync sets S3_BUCKET; s3_sync reads BUCKET once at
+        # import, so an early import would freeze it empty and break those tests.
+        from routers.putting import AVERAGE_MIN_SESSIONS
+
         with TestClient(self._app) as client:
             self._login_as(client, ALICE)
             self.assertEqual(self._record_identity(client, "sub-alice", "Alice A").status_code, 200)
-            # A recent test counts; one over a year old is dropped, so the average is
-            # the recent test's 60%, not blended with the stale 20%.
-            recent = date.today().isoformat()
+            # Enough recent tests to clear the session minimum, all at 60%; one test
+            # over a year old is dropped by the year window, so the average stays the
+            # recent 60% rather than blending in the stale 20%.
+            for i in range(AVERAGE_MIN_SESSIONS):
+                recent = (date.today() - timedelta(days=i)).isoformat()
+                self.assertEqual(
+                    self._record_full_test(client, f"t-recent-{i}", recent, made=3).status_code, 200
+                )
             stale = (date.today() - timedelta(days=400)).isoformat()
-            self.assertEqual(self._record_full_test(client, "t-recent", recent, made=3).status_code, 200)
             self.assertEqual(self._record_full_test(client, "t-stale", stale, made=1).status_code, 200)
 
             body = client.get("/leaderboard", params={"mode": "average"}).json()
             self.assertEqual([u["sub"] for u in body["users"]], ["sub-alice"])
             self.assertEqual(body["users"][0]["overall_pct"], 60.0)
-            self.assertEqual(body["users"][0]["sessions"], 1)  # only the recent test counted
+            # Only the in-window tests counted; the year-old one was dropped.
+            self.assertEqual(body["users"][0]["sessions"], AVERAGE_MIN_SESSIONS)
 
     def test_leaderboard_excludes_incomplete_tests(self):
         with TestClient(self._app) as client:

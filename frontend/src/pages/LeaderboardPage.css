@@ -65,7 +65,7 @@
 
 .board-rank {
   flex: 0 0 auto;
-  min-width: 1.4rem;
+  min-width: 2.2rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: color-mix(in srgb, CanvasText 50%, Canvas);
@@ -143,16 +143,6 @@
   align-items: center;
   gap: 0.35rem;
   min-width: 0;
-}
-
-/* The "misses tracked" marker: a small muted-gray target to the right of the name.
-   A neutral, not the brand accent, so it reads as a quiet metadata flag rather than
-   competing with the score. */
-.target-icon {
-  flex: 0 0 auto;
-  width: 13.5px;
-  height: 13.5px;
-  color: color-mix(in srgb, CanvasText 45%, Canvas);
 }
 
 /* The expanded graph sits inside the entry as a standard chart panel (gray

@@ -19,11 +19,12 @@ import { useMemo, useState } from 'react'
 import { useLeaderboard } from '../lib/useLeaderboard'
 import { useGlobalStats } from '../lib/useGlobalStats'
 import { useUserMisses } from '../lib/useUserHistory'
-import { MODE_BLURB, formatDay, type LeaderboardMode } from '../lib/leaderboard'
+import { MODE_BLURB, formatDay, rankLabels, type LeaderboardMode } from '../lib/leaderboard'
 import { localDay, type DistanceStat } from '../lib/putting'
 import ModeControl from '../components/ModeControl'
 import DayPicker from '../components/DayPicker'
 import ToggleChartPanel from '../components/ToggleChartPanel'
+import TargetIcon from '../components/TargetIcon'
 import './LeaderboardPage.css'
 
 /**
@@ -70,23 +71,6 @@ function ExpandedChart({
   )
 }
 
-/** A small target icon marking a player whose expanded view has a miss map to show. */
-function TargetIcon() {
-  return (
-    <svg
-      className="target-icon"
-      viewBox="0 0 24 24"
-      role="img"
-      aria-label="Misses tracked"
-      focusable="false"
-    >
-      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
-      <circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" strokeWidth="2" />
-      <circle cx="12" cy="12" r="1.6" fill="currentColor" />
-    </svg>
-  )
-}
-
 /** Caution triangle shown in the rank slot for a mid-round player. */
 function CautionIcon() {
   return (
@@ -117,6 +101,10 @@ function LeaderboardPage() {
     () => new Map(allTimeUsers.map((u) => [u.sub, u.stats])),
     [allTimeUsers],
   )
+
+  // Rank labels in board order, with ties (equal to one decimal place) sharing a
+  // number and shown as T1, T2, … See rankLabels for the tie rule.
+  const ranks = useMemo(() => rankLabels(entries.map((e) => e.overall_pct)), [entries])
 
   // In-progress players only make sense for today's Daily board.
   const today = localDay()
@@ -206,7 +194,12 @@ function LeaderboardPage() {
                   aria-expanded={isOpen}
                   onClick={() => toggle(entry.sub)}
                 >
-                  <span className="board-rank">{i + 1}</span>
+                  <span
+                    className="board-rank"
+                    aria-label={ranks[i].tied ? `Tied, rank ${i + 1}` : `Rank ${i + 1}`}
+                  >
+                    {ranks[i].label}
+                  </span>
                   {entry.picture && (
                     <img className="board-avatar" src={entry.picture} alt="" referrerPolicy="no-referrer" />
                   )}
@@ -227,7 +220,9 @@ function LeaderboardPage() {
                       <span className="board-sub board-message">{entry.message}</span>
                     )}
                   </span>
-                  <span className="board-pct">{Math.round(entry.overall_pct)}%</span>
+                  <span className="board-pct">
+                    {mode === 'average' ? entry.overall_pct.toFixed(1) : Math.round(entry.overall_pct)}%
+                  </span>
                 </button>
 
                 {isOpen && (

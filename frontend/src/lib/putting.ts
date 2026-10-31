@@ -16,6 +16,7 @@ export interface Test {
   test_id: string
   test_date: string // local calendar day, YYYY-MM-DD
   message?: string | null // optional note shown alongside the daily leaderboard score
+  has_misses?: boolean // the test carries at least one tracked (directional) miss
 }
 
 /** A user identity as the server projection returns it (see backend/projections/users.py).

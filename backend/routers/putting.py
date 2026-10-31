@@ -124,13 +124,27 @@ def get_tests(request: Request, sub: str | None = None):
             "FROM tests WHERE owner_sub = ? AND deleted_at IS NULL ORDER BY test_date",
             (owner,),
         ).fetchall()
+        # Tests that carry at least one tracked miss (a missed putt with a recorded
+        # direction), so the profile can flag each row the way the leaderboard does.
+        # Not limited to complete tests: an unfinished day can still have a tracked
+        # miss, and the profile lists those rows too.
+        miss_test_ids = {
+            r["test_id"]
+            for r in conn.execute(
+                "SELECT DISTINCT b.test_id AS test_id FROM putts p "
+                "JOIN batches b ON b.batch_id = p.batch_id AND b.owner_sub = p.owner_sub "
+                "WHERE p.owner_sub = ? AND p.deleted_at IS NULL "
+                "AND p.made = 0 AND p.miss_type IS NOT NULL AND b.deleted_at IS NULL",
+                (owner,),
+            ).fetchall()
+        }
         owner_sub, owner_name = owner, _owner_name(conn, owner)
         version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
     return {
         "version": version,
         "owner_sub": owner_sub,
         "owner_name": owner_name,
-        "tests": [dict(r) for r in rows],
+        "tests": [{**dict(r), "has_misses": r["test_id"] in miss_test_ids} for r in rows],
     }
 
 
