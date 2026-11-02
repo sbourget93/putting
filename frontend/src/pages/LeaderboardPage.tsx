@@ -25,6 +25,8 @@ import ModeControl from '../components/ModeControl'
 import DayPicker from '../components/DayPicker'
 import ToggleChartPanel from '../components/ToggleChartPanel'
 import TargetIcon from '../components/TargetIcon'
+import CommentIcon from '../components/CommentIcon'
+import TestComments from '../components/TestComments'
 import './LeaderboardPage.css'
 
 /**
@@ -44,6 +46,7 @@ function ExpandedChart({
   seriesLabel,
   missDay,
   missScope,
+  commentTestId,
 }: {
   sub: string
   stats: DistanceStat[]
@@ -54,6 +57,9 @@ function ExpandedChart({
   missDay?: string
   /** On the Average board, 'average' to scope the miss map to the pooled tests. */
   missScope?: 'average'
+  /** On the Daily board, the test whose comment thread to show (a third view). Only
+   *  ranked entries carry one; absent elsewhere, so no Comments segment appears. */
+  commentTestId?: string
 }) {
   const { counts, total } = useUserMisses(sub, { day: missDay, scope: missScope })
   return (
@@ -65,6 +71,7 @@ function ExpandedChart({
       missCounts={counts}
       missTotal={total}
       showMissToggle={total > 0}
+      commentsContent={commentTestId ? <TestComments testId={commentTestId} /> : undefined}
       emptyNote="No data yet."
       alwaysRenderChart
     />
@@ -207,6 +214,9 @@ function LeaderboardPage() {
                     <span className="board-name-row">
                       <span className="board-name">{entry.name}</span>
                       {entry.has_misses && <TargetIcon />}
+                      {mode === 'daily' && !!entry.comment_count && (
+                        <CommentIcon count={entry.comment_count} />
+                      )}
                     </span>
                     {mode === 'average' && entry.sessions != null && (
                       <span className="board-sub">
@@ -237,6 +247,8 @@ function LeaderboardPage() {
                       // Daily to the board's day; Average uses missScope instead.
                       missDay={mode === 'best' ? entry.date : missDay}
                       missScope={missScope}
+                      // Comments live only on the Daily board, keyed to that day's test.
+                      commentTestId={mode === 'daily' ? entry.test_id : undefined}
                     />
                   </div>
                 )}
