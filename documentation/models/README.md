@@ -19,6 +19,7 @@ These are all read-model projections derived from the event-sourced data in the 
 | [User](./projections/users.md) | One row per Google account: the display identity and stored role. |
 | [User Data](./projections/user_data.md) | User specific key-value pairs. |
 | [User Setting](./projections/user_settings.md) | One stored preference per user per setting. |
+| [Test Comment](./projections/test_comments.md) | One comment a player left on a daily test, shown on the daily leaderboard. |
 
 ## Metadata fields
 

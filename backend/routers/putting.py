@@ -240,6 +240,49 @@ def get_misses(
     }
 
 
+@router.get("/comments")
+def get_comments(test_id: str):
+    """Comments left on one daily test, in server arrival order.
+
+    Public, like the rest of the leaderboard: anyone can read a test's comments,
+    though posting (via POST /commands) requires a signed-in writer. Each comment
+    carries its author's `sub`, display `name`, and `picture`, joined from the users
+    projection so the commenter's current identity is always shown. The aggregate
+    stores no author name of its own; no email is ever read or returned.
+
+    Ordered by the seq of each comment's creation event, i.e. the order the server
+    received them (not the client-composed created_at), so the thread reads in true
+    chronological order even across devices and clock skew. Soft-deleted comments are
+    omitted. `edited` is true when a comment has been changed since it was posted.
+    """
+    with db.read() as conn:
+        rows = conn.execute(
+            "SELECT c.comment_id AS comment_id, c.owner_sub AS owner_sub, c.body AS body, "
+            "c.created_at AS created_at, c.updated_at AS updated_at, "
+            "u.name AS name, u.picture AS picture, e.seq AS seq "
+            "FROM test_comments c "
+            "JOIN events e ON e.aggregate_id = c.comment_id AND e.event_type = 'TestCommentAdded' "
+            "LEFT JOIN users u ON u.sub = c.owner_sub AND u.deleted_at IS NULL "
+            "WHERE c.test_id = ? AND c.deleted_at IS NULL "
+            "ORDER BY e.seq",
+            (test_id,),
+        ).fetchall()
+        version = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
+    comments = [
+        {
+            "comment_id": r["comment_id"],
+            "owner_sub": r["owner_sub"],
+            "name": r["name"],
+            "picture": r["picture"],
+            "body": r["body"],
+            "created_at": r["created_at"],
+            "edited": r["updated_at"] is not None,
+        }
+        for r in rows
+    ]
+    return {"version": version, "test_id": test_id, "comments": comments}
+
+
 @router.get("/daily")
 def get_daily(request: Request, day: str | None = None):
     """The compact payload the Daily Putts page needs, for one local day.
@@ -464,9 +507,26 @@ def _miss_subs_for_day(conn, day: str) -> set[str]:
     }
 
 
+def _comment_counts(conn, test_ids: list[str]) -> dict[str, int]:
+    """Non-deleted comment count per test_id, for the ids given (empty -> {})."""
+    if not test_ids:
+        return {}
+    placeholders = ",".join("?" * len(test_ids))
+    return {
+        r["test_id"]: r["n"]
+        for r in conn.execute(
+            f"SELECT test_id, COUNT(*) AS n FROM test_comments "
+            f"WHERE test_id IN ({placeholders}) AND deleted_at IS NULL "
+            "GROUP BY test_id",
+            test_ids,
+        ).fetchall()
+    }
+
+
 def _leaderboard_daily(conn, day: str) -> dict:
     rows = conn.execute(
         "SELECT u.sub AS sub, u.name AS name, u.picture AS picture, t.message AS message, "
+        "t.test_id AS test_id, "
         "b.distance AS distance, SUM(b.made) AS made, SUM(b.batch_size) AS attempts "
         "FROM batches b "
         "JOIN tests t ON t.test_id = b.test_id AND t.owner_sub = b.owner_sub "
@@ -488,14 +548,26 @@ def _leaderboard_daily(conn, day: str) -> dict:
     for r in rows:
         user = users.get(r["sub"])
         if user is None:
-            # One complete test per (user, day), so its message is the same on every
-            # distance row for this user; take it from the first.
-            user = {"sub": r["sub"], "name": r["name"], "picture": r["picture"], "message": r["message"], "stats": []}
+            # One complete test per (user, day), so its message and test_id are the
+            # same on every distance row for this user; take them from the first.
+            user = {
+                "sub": r["sub"],
+                "name": r["name"],
+                "picture": r["picture"],
+                "message": r["message"],
+                "test_id": r["test_id"],
+                "stats": [],
+            }
             users[r["sub"]] = user
             totals[r["sub"]] = [0, 0]
         user["stats"].append(_stat(r["distance"], r["made"], r["attempts"]))
         totals[r["sub"]][0] += r["made"]
         totals[r["sub"]][1] += r["attempts"]
+
+    # How many comments each ranked test carries, so the row can show a count badge
+    # without a second request. Only non-deleted comments count.
+    comment_counts = _comment_counts(conn, [u["test_id"] for u in users.values()])
+
     entries = _rank(
         [
             {
@@ -503,6 +575,7 @@ def _leaderboard_daily(conn, day: str) -> dict:
                 "attempts": totals[sub][1],
                 "overall_pct": _pct(*totals[sub]),
                 "has_misses": sub in miss_subs,
+                "comment_count": comment_counts.get(u["test_id"], 0),
             }
             for sub, u in users.items()
         ]

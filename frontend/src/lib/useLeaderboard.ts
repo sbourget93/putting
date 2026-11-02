@@ -32,6 +32,11 @@ export interface LeaderboardEntry {
   date?: string
   /** Daily board only: the optional note the player left on that day's test. */
   message?: string | null
+  /** Daily board only: the id of that day's test, so its comments can be read and
+   *  written. Only ranked (completed) entries carry one. */
+  test_id?: string
+  /** Daily board only: how many comments that day's test has, for the count badge. */
+  comment_count?: number
 }
 
 /** A player mid-round: the day's test started but not yet finished. */

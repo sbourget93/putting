@@ -1,0 +1,10 @@
+/* The comment-count marker: a small muted speech bubble beside the name, the same
+   quiet neutral as the target icon so the two read as a matched pair of metadata
+   flags rather than competing with the score. Slightly larger than the target icon
+   so the count inside stays legible. */
+.comment-icon {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  color: color-mix(in srgb, CanvasText 45%, Canvas);
+}
