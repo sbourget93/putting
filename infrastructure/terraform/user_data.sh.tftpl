@@ -24,7 +24,11 @@ fi
 
 # ---- TLS: obtain + persist a Let's Encrypt cert via DNS-01 (Route 53) ----
 # Runs on the host (a container is blocked by the default IMDSv2 hop limit).
-# Certs live in S3 so a recycled box reuses them.
+# Certs live in S3 so a recycled box reuses them. aws s3 sync does not preserve
+# certbot's live/ symlinks, so without --cert-name certbot fails to recognize the
+# synced-down lineage and forks a new numbered one (domain-0001, -0002, ...) that
+# nginx never reads, leaving the real cert to expire. --cert-name pins renewal to
+# the lineage nginx loads.
 aws s3 sync ${letsencrypt_s3}/ /etc/letsencrypt/ --quiet 2>/dev/null || true
 if ! openssl x509 -checkend 2592000 -noout \
     -in /etc/letsencrypt/live/${domain}/fullchain.pem 2>/dev/null; then
@@ -32,6 +36,7 @@ if ! openssl x509 -checkend 2592000 -noout \
     --authenticator dns-route53 \
     --non-interactive --agree-tos \
     %{ if certbot_email != "" }--email ${certbot_email}%{ else }--register-unsafely-without-email%{ endif } \
+    --cert-name ${domain} \
     -d ${domain} \
     --deploy-hook "aws s3 sync /etc/letsencrypt/ ${letsencrypt_s3}/ --quiet && docker exec gateway nginx -s reload 2>/dev/null || true"
   aws s3 sync /etc/letsencrypt/ ${letsencrypt_s3}/ --quiet
